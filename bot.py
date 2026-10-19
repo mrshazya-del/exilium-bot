@@ -86,6 +86,32 @@ def is_exilium_team_member(user: discord.abc.User) -> bool:
             return True
     return False
 
+def is_staff_member(user: discord.abc.User) -> bool:
+    """Check if user is Exilium Team, Head Supporter, Community Supporter, GM/Admin."""
+    if not isinstance(user, discord.Member):
+        return False
+    if str(user.id) == ADMIN_USER_ID or str(user.id) == "382690116357062656" or user.guild_permissions.administrator:
+        return True
+    staff_ids = {
+        str(EXILIUM_TEAM_ROLE_ID),
+        str(HEAD_SUPPORTER_ROLE_ID),
+        str(COMMUNITY_SUPPORTER_ROLE_ID),
+        str(SUPPORT_ROLE_ID),
+        str(ADMIN_ROLE_ID)
+    }
+    for role in user.roles:
+        if str(role.id) in staff_ids:
+            return True
+        r_name = role.name.lower()
+        if any(k in r_name for k in ["exilium team", "supporter", "support", "admin", "moderator", "gm"]):
+            return True
+    return False
+
+# channel_id -> bool: True when staff spoke in ticket, so bot completely stops replying
+ticket_staff_taken_over: Dict[int, bool] = {}
+# channel_id -> bool: True when staff was already pinged in this ticket to prevent repeat pings
+ticket_escalated: Dict[int, bool] = {}
+
 # -------------------------------------------------------------
 # Initialize Gemini Client
 # -------------------------------------------------------------
@@ -1029,24 +1055,12 @@ async def process_ticket_ai_reply(
             resolved_embed.set_footer(text="Exilium Support Management • Ready for Closure")
             await channel.send(embed=resolved_embed)
 
-        # Handle Escalation Notification if triggered
-        # Strictly mentions ONLY STAM, Head Supporter, and Community Supporter
+        # Handle Escalation Notification if triggered (quiet mention, no embed, ping once only)
         if needs_escalation:
-            staff_pings = get_staff_ticket_mentions()
-            player_display = target_mention if target_mention else author.mention
-
-            escalate_embed = discord.Embed(
-                title="🚨 Staff & Admin Assistance Required",
-                description=(
-                    f"**Player / Owner:** {player_display}\n"
-                    f"**Channel:** {channel.mention}\n\n"
-                    "💡 **Reason:** This ticket requires direct staff intervention (Donation/Payment, unlisted question, or complex technical issue).\n\n"
-                    f"📢 **Staff Ping:** {staff_pings}"
-                ),
-                color=0xE74C3C
-            )
-            escalate_embed.set_footer(text="Exilium Support Management System • Automated Alert")
-            await channel.send(content=f"🔔 {staff_pings}", embed=escalate_embed)
+            if channel_id not in ticket_escalated:
+                ticket_escalated[channel_id] = True
+                staff_pings = get_staff_ticket_mentions()
+                await channel.send(content=f"🔔 {staff_pings}")
 
     except Exception as e:
         logger.error(f"Error handling AI response for ticket {channel_id}: {e}")
@@ -1102,8 +1116,17 @@ async def on_ready():
         logger.info("Started weekly report background loop.")
 
     try:
+        # Sync directly to all connected guilds for INSTANT slash command visibility in Discord
+        for g in bot.guilds:
+            try:
+                bot.tree.copy_global_to(guild=g)
+                guild_synced = await bot.tree.sync(guild=g)
+                logger.info(f"Instantly synced {len(guild_synced)} slash commands to guild '{g.name}' (ID: {g.id})")
+            except Exception as ge:
+                logger.warning(f"Could not sync to guild {g.id}: {ge}")
+
         synced = await bot.tree.sync()
-        logger.info(f"Synced {len(synced)} slash commands.")
+        logger.info(f"Synced {len(synced)} global slash commands.")
     except Exception as e:
         logger.error(f"Failed to sync slash commands: {e}")
 
@@ -1118,6 +1141,9 @@ async def on_typing(channel, user, when):
     if not isinstance(channel, (discord.TextChannel, discord.Thread)):
         return
     if not is_ticket_channel(channel):
+        return
+    # If staff has taken over or user typing is staff, do nothing
+    if ticket_staff_taken_over.get(channel.id, False) or is_staff_member(user):
         return
 
     cid = channel.id
@@ -1216,20 +1242,40 @@ async def on_message(message: discord.Message):
     # -------------------------------------------------------------
     # Case 2: Message from a Human Player / Staff
     # -------------------------------------------------------------
-    # Check if an EXILIUM TEAM member is confirming a pending starter package
-    if is_exilium_team_member(message.author) and channel_id in pending_starters:
-        msg_clean = message.content.strip().lower()
-        confirm_keywords = {"تمام", "ok", "تم", "confirm", "send", "موافق", "done", "yes"}
-        words_in_msg = set(msg_clean.split())
-        if msg_clean in confirm_keywords or words_in_msg.intersection(confirm_keywords):
-            pending_ign = pending_starters[channel_id]["ign"]
-            await execute_starter_dispatch(
-                message.guild,
-                pending_ign,
-                message.channel,
-                confirmed_by=message.author
-            )
-            return
+    # If a staff member (Exilium Team, Head Supporter, Supporter, GM/Admin) sends a message in this ticket:
+    if is_staff_member(message.author):
+        # 1. Check if an EXILIUM TEAM member is confirming a pending starter package
+        if is_exilium_team_member(message.author) and channel_id in pending_starters:
+            msg_clean = message.content.strip().lower()
+            confirm_keywords = {"تمام", "ok", "تم", "confirm", "send", "موافق", "done", "yes"}
+            words_in_msg = set(msg_clean.split())
+            if msg_clean in confirm_keywords or words_in_msg.intersection(confirm_keywords):
+                pending_ign = pending_starters[channel_id]["ign"]
+                await execute_starter_dispatch(
+                    message.guild,
+                    pending_ign,
+                    message.channel,
+                    confirmed_by=message.author
+                )
+
+        # 2. Staff has taken over the ticket!
+        # Cancel any active bot typing / debounce and mark ticket as staff-handled:
+        ticket_staff_taken_over[channel_id] = True
+        if channel_id in ticket_debounce_tasks and not ticket_debounce_tasks[channel_id].done():
+            ticket_debounce_tasks[channel_id].cancel()
+        ticket_pending_queues.pop(channel_id, None)
+
+        # Remove inactivity tracking so bot never pesters player while staff is in ticket
+        inactivity_data.pop(str(channel_id), None)
+        save_inactivity_data()
+
+        logger.info(f"Staff member {message.author.display_name} spoke in #{message.channel.name}. Bot silenced for this ticket.")
+        # NEVER reply to staff messages!
+        return
+
+    # If staff has already taken over this ticket, bot completely stops talking!
+    if ticket_staff_taken_over.get(channel_id, False):
+        return
 
     # Reset inactivity tracker because human spoke
     if str(channel_id) in inactivity_data:
@@ -1353,6 +1399,84 @@ async def transcript_command(interaction: discord.Interaction):
     except Exception as e:
         logger.error(f"Error generating transcript: {e}")
         await interaction.followup.send(f"⚠️ فشل استخراج السجل: {e}", ephemeral=True)
+
+@bot.tree.command(name="pause-bot", description="إيقاف ردود الذكاء الاصطناعي في هذا التيكت (للإدارة)")
+async def pause_bot_command(interaction: discord.Interaction):
+    if not is_staff_member(interaction.user):
+        await interaction.response.send_message("❌ هذا الأمر مخصص للستاف فقط.", ephemeral=True)
+        return
+    ticket_staff_taken_over[interaction.channel_id] = True
+    await interaction.response.send_message("⏸️ تم إيقاف ردود الذكاء الاصطناعي في هذا التيكت. يمكنك التحدث مع اللاعب بحرية.", ephemeral=True)
+
+@bot.tree.command(name="resume-bot", description="إعادة تفعيل ردود الذكاء الاصطناعي في هذا التيكت (للإدارة)")
+async def resume_bot_command(interaction: discord.Interaction):
+    if not is_staff_member(interaction.user):
+        await interaction.response.send_message("❌ هذا الأمر مخصص للستاف فقط.", ephemeral=True)
+        return
+    ticket_staff_taken_over.pop(interaction.channel_id, None)
+    await interaction.response.send_message("▶️ تم إعادة تفعيل ردود الذكاء الاصطناعي في هذا التيكت بنجاح.", ephemeral=True)
+
+@bot.tree.command(name="update-bot", description="سحب آخر تحديثات الكود من GitHub وإعادة تشغيل البوت تلقائياً (للإدارة فقط)")
+async def update_bot_command(interaction: discord.Interaction):
+    if not is_exilium_team_member(interaction.user):
+        await interaction.response.send_message("❌ هذا الأمر مخصص لـ 👑 EXILIUM TEAM فقط.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+    github_token = os.getenv("GITHUB_TOKEN", "").strip()
+    if github_token:
+        repo_url = f"https://{github_token}@github.com/mrshazya-del/exilium-bot.git"
+    else:
+        repo_url = os.getenv("GITHUB_REPO_URL", "https://github.com/mrshazya-del/exilium-bot.git").strip()
+
+    try:
+        # Check if .git directory exists; if not, initialize it
+        git_dir = os.path.join(os.path.dirname(__file__), ".git")
+        if not os.path.exists(git_dir):
+            p1 = await asyncio.create_subprocess_exec("git", "init", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            await p1.communicate()
+            p2 = await asyncio.create_subprocess_exec("git", "remote", "add", "origin", repo_url, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            await p2.communicate()
+        else:
+            # Update remote url in case token or URL was updated
+            p_set = await asyncio.create_subprocess_exec("git", "remote", "set-url", "origin", repo_url, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            await p_set.communicate()
+
+        # Run git pull origin main
+        process = await asyncio.create_subprocess_exec(
+            "git", "pull", "origin", "main",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        out_msg = stdout.decode("utf-8", errors="ignore").strip()
+        err_msg = stderr.decode("utf-8", errors="ignore").strip()
+
+        # Reload knowledge base
+        load_knowledge_base()
+
+        status_text = out_msg if out_msg else (err_msg if err_msg else "Updated successfully.")
+        embed = discord.Embed(
+            title="🔄 Exilium Bot Auto-Updater",
+            description=(
+                f"**Git Pull Result:**\n```{status_text[:800]}```\n\n"
+                "🚀 **جاري إعادة تشغيل البوت الآن بالنسخة الجديدة...**\n"
+                "سيعود البوت للعمل خلال ثانية واحدة تلقائياً."
+            ),
+            color=0x2ECC71
+        )
+        embed.set_footer(text=f"طلب بواسطة: {interaction.user.display_name}")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+        logger.info(f"Auto-update triggered by {interaction.user}. Restarting process...")
+        await asyncio.sleep(1.0)
+
+        # Restart bot process
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+    except Exception as e:
+        logger.error(f"Error in /update-bot: {e}")
+        await interaction.followup.send(f"⚠️ فشل التحديث التلقائي: `{e}`\n(تأكد من وجود git في الـ PATH على السيرفر).", ephemeral=True)
 
 # -------------------------------------------------------------
 # Main Runner

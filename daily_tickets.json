@@ -15,6 +15,14 @@
       "issue": "payment methods",
       "status": "🚨 Escalated",
       "updated_at": "21:48 UTC"
+    },
+    "1561629843727323186": {
+      "channel_name": "ticket-0013-exilium-support",
+      "ign": "! CON",
+      "username": "con.007",
+      "issue": "patching now. thank you <@382690116357062656> <@156180168626",
+      "status": "✅ Resolved",
+      "updated_at": "22:39 UTC"
     }
   }
 }
