@@ -1,0 +1,221 @@
+{
+  "server_name": "Exilium",
+  "server_type": "Progressive Longterm Oldschool",
+  "current_version": "V12 (Halloween Update)",
+  "website": "https://exiliumonline.com",
+  "discord_invite": "https://discord.gg/exilium",
+  "official_links": {
+    "website": "https://exiliumonline.com",
+    "download_page": "https://exiliumonline.com/download",
+    "web_store": "https://exiliumonline.com/account/store",
+    "ranking": "https://exiliumonline.com/ranking",
+    "prison_history": "https://exiliumonline.com/prison-history",
+    "register": "https://exiliumonline.com/register",
+    "login": "https://exiliumonline.com/login",
+    "terms_of_service": "https://exiliumonline.com/terms"
+  },
+  "official_downloads": {
+    "direct": "https://exiliumonline.com/app/static/download/Exilium_Online.rar",
+    "google_drive": "https://drive.google.com/file/d/1wIHt8bMrtFmgtfLyTuUzkxpRmiNuMwWm/view?usp=sharing",
+    "mediafire": "https://www.mediafire.com/file/87ns306zjhzvqul/Exilium_Client.rar/file",
+    "mega": "https://mega.nz/file/F0BF1BTb#ipFh5Fjai50V-2LEARmaasKYey5W5mAwq510b3KKU-A",
+    "mega_2": "https://mega.nz/file/CjoByAgI#FWFp_bKxA7T6AkSrjWZT9Xn62N5w90GKc1j9YtsE6SE",
+    "files_fm": "https://files.fm/u/3yhwskv5vg"
+  },
+  "system_requirements": {
+    "os": "Windows 7 / 8 / 10 / 11 (64-bit)",
+    "disk_space": "Minimum 10GB free space",
+    "cpu": "Intel Core i3 or equivalent",
+    "ram": "4 GB RAM",
+    "gpu": "DirectX 9.0c compatible",
+    "network": "Broadband connection"
+  },
+  "supported_languages": [
+    "Arabic / Egyptian (العربية / اللهجة المصرية)",
+    "English",
+    "Turkish (Türkçe)",
+    "Portuguese / Brazilian (Português do Brasil)",
+    "German (Deutsch)"
+  ],
+  "server_specifications": {
+    "cap": "80",
+    "race": "Chinese Only (CH) - Pure classic nostalgia",
+    "rates": "Medium",
+    "mastery_limit": "300",
+    "degree": "8D (Degree 8)",
+    "starting_level": "Level 80 (New players start directly at Lv 80)",
+    "starter_gear": "Auto Equip gives +6 FB items up to Lv 79. Rook NPC in Donwhang provides starter beginner rewards.",
+    "pc_limit": "2 PC Limit",
+    "ip_limit": "2 IP Limit",
+    "job_limit": "1 Player = 1 Jobber strictly enforced",
+    "play2win": "100%",
+    "union_limit": "2 Guilds per Union (Jangan Fortress has 2 Union limit, Bandit Fortress is No Union)",
+    "daily_gold_limit": "350M Gold (Increases to 500M Gold on weekends: Friday/Saturday/Sunday)"
+  },
+  "alchemy_system": {
+    "max_plus": "+10 without ADV (Maximum plus with ADV C is +12 or +13 glow)",
+    "alchemy_powder_rates": {
+      "+1": "100%",
+      "+2": "100%",
+      "+3": "100%",
+      "+4": "75%",
+      "+5": "30%",
+      "+6": "25%",
+      "+7": "20%",
+      "+8": "2%",
+      "+9": "1%",
+      "+10": "1%"
+    },
+    "elixirs_upgrading": "100 normal elixirs + 2.5M Gold + 5 Arena Coins -> 50 SOS Elixirs (Elixir SOX Upgrader in NPC). SOS Elixirs can be upgraded into Moon Elixirs.",
+    "lucky_scrolls": "2% Lucky Scrolls stack to 1k. 100x 2% Lucky Scrolls can be converted into 1x 3% Lucky Scroll (via Lucky Scroll Upgrader). Craftable 3% Lucky with Mining Elements.",
+    "adv_elixirs": {
+      "adv_b": "ADV B SOX rate is 12%.",
+      "adv_c_weapon_cracker": "ADV C Weapon Cracker Scroll in NPC converts +10 SOX Weapon into ADV C SOX (+2 plus bonus, gives +13 glow). The original weapon is sacrificed/destroyed in the process.",
+      "adv_c_normal": "ADV C Normal for all item types available via Magic POP and Normal ADV Box (cannot break +10 for ADV C normal)."
+    },
+    "alchemy_boosters": "Super Alchemy Reinforce Booster costs 150M gold and lasts 100 minutes. Fast Alchemy enabled in events."
+  },
+  "seal_of_moon_guide": {
+    "description": "How Seal of Moon (SOM) crafting works in Exilium:",
+    "steps": [
+      "1. Drop untradeable 'Dead Moon Items' + corresponding Fragments inside Dungeons (HWT, Server Dungeon, Guild Dungeon).",
+      "2. Break unwanted Dead Moon Items with 'Moon Hammer' (bought from NPC) to gain extra fragments.",
+      "3. Buy 'Seal of Life' from NPC and use it on the Dead Moon Item to awaken it (reveals real fragment crafting requirement instead of 9999).",
+      "4. Craft the Dead Moon Item with required Fragments in the standard Alchemy Window.",
+      "5. Untradeable accessories can be destroyed with 'Dead Hammer' for fragments."
+    ],
+    "fragment_requirements": {
+      "moon_weapon_and_shield": "Frozen: 400 | Poison: 250 | Blazing: 150 | Zarkan: 75",
+      "moon_protector_set": "Frozen: 175 | Poison: 100 | Blazing: 75 | Zarkan: 35",
+      "moon_accessories": "Frozen: 200 | Poison: 125 | Blazing: 100 | Zarkan: 50"
+    },
+    "moon_weapon_switchers": "Nesta NPC offers Weapon Switchers for Moon Weapons (keeps the same plus and same stats/blues). Cost: 25 Event Coins, 250 Arena Coins, 500M Gold."
+  },
+  "item_points_requirements": {
+    "holy_water_temple": "4,000 Item Points (4-party dungeon, drops all elements)",
+    "blazing_dungeon": "4,000 Item Points",
+    "party_dungeon": "3,850 Item Points (Boss has chance for ADV SoS Box/Lamp/10M Goldbar)",
+    "fishing": "4,000 Item Points (Provides Job EXP)",
+    "aqua_trade": "3,500 Item Points",
+    "battle_arena": "3,500 Item Points",
+    "general_jobbing": "4,000 Item Points requirement was removed (open to all, except Aqua route)"
+  },
+  "job_system_details": {
+    "triangle": "Classic Hunter vs Thief vs Trader dynamic.",
+    "job_quests": "Job Quests award 100% Job EXP, but player MUST be wearing their Job Suit when delivering the quests. Job temple mob quest requires 500 mobs.",
+    "job_suit_npc": "Job Suit Breaker in Job Suit NPC destroys unwanted Job Suit and safely refunds Gold & Arena Coins back to player storage.",
+    "job_reverse": "Special Thief Job Reverse cooldown is 90 seconds.",
+    "job_coins": "Untradeable Job Coins awarded from daily job quests (15 kills daily quest).",
+    "job_remover": "Job Remover available in Gift Silk Shop and for 75M Gold.",
+    "mercenaries": "Guild Masters can purchase Mercenaries from NPC without job level restrictions."
+  },
+  "official_daily_event_schedule": [
+    { "time": "19:15", "event": "Automatic Unique Event" },
+    { "time": "19:40", "event": "Roc Job Event" },
+    { "time": "20:00", "event": "Zealot" },
+    { "time": "20:20", "event": "Battle Arena" },
+    { "time": "20:35", "event": "League of Legends Event" },
+    { "time": "20:55", "event": "Medusa (Balanced STR/INT Party of 4)" },
+    { "time": "21:15", "event": "Tower Defend" },
+    { "time": "21:35", "event": "Battle Arena (Party)" },
+    { "time": "22:00", "event": "Mining Event" },
+    { "time": "22:20", "event": "Survival Solo (Balanced)" },
+    { "time": "22:35", "event": "Elder Unique" },
+    { "time": "22:50", "event": "Haro / Seth / Treasure Box" },
+    { "time": "23:15", "event": "PvP Boss — Donwhang South" },
+    { "time": "23:30", "event": "Survival Teams (Balanced)" },
+    { "time": "23:50", "event": "Last Team Standing" },
+    { "time": "00:00", "event": "Special Goods — Tiger Mountain" },
+    { "time": "01:20", "event": "Roc Job Event" },
+    { "time": "02:00", "event": "Styria Clash" },
+    { "time": "02:30", "event": "Battle Arena" },
+    { "time": "03:00", "event": "Tower Defend" },
+    { "time": "03:30", "event": "Survival Teams (Balanced)" },
+    { "time": "04:00", "event": "Last Team Standing" }
+  ],
+  "major_events_and_schedules": {
+    "fortress_war": {
+      "jangan_fortress": "Sunday 14:30 - 15:30 Server Time (2 Union limit). Winner receives Behemoth pet / Dark Lizard.",
+      "bandit_fortress": "Sunday 16:30 - 17:30 Server Time (Balanced, No Union allowed)."
+    },
+    "weekly_ranking_reset": "Resets every Sunday at 18:00 Server Time. Rewards: Top 1 Player (1,000 Silk), Top 1 Guild Master (1,000 Silk), Top 1 Jobber (1,000 Silk), Top 1 Battle Royale (1,000 Silk), Top 1 LoL (1,000 Silk).",
+    "chaos_job_event": "Daily at 23:30 Server Time. Features Evil Terra, Evil Pyrex, Evil Kryon, Evil Dragon King (STR/INT), 8 Treasure Boxes spawn before Dragon. Each kill grants 1 Moon Elixir + 1 Event Coin.",
+    "evil_unique_takeover": "Daily at 15:55 Server Time. All Evil Uniques spawn together across the map.",
+    "halloween_event": "Evil Pumpkin Event every 6 hours (STR/INT in Job Temple treasure spawns). Drops Halloween Box (Halloween avatar/pick pet, random 1-500 Gift Silk, 1-25 Arena coins) + Evil Lamp + 15 Moon Elements.",
+    "survival_solo": "22:20 - 22:30 Server Time daily.",
+    "earth_ghost_race": "Replaces 4v4 survival in Togui Village (first to teleport wins).",
+    "anubis_and_isis": "21:45 Server Time daily. Drops 100% 1 SOS each, 1-25 Arena coins in chest, 3x Lamps, 10 Event Coins, 25% ADV C Normal.",
+    "selket_and_neith": "Job Temple Uniques. Drops 3% Lucky Scroll 100%, 10 Event Coins, 25% ADV C Normal in chest.",
+    "evil_uniques_spawn": "Evil Uniques (Evil Frostclaw STR, Evil Kong STR, Evil Elder, etc.) spawn every 4 hours.",
+    "roc_event": "Roc INT and Death Bone STR spawn at Donwhang South. Resurrection cooldown inside Roc is 30 seconds. Drops ADV SOS Box.",
+    "medusa": "Solo Medusa only (Balanced STR + INT). Drops 1 ADV SOS Box + Lamp for everyone in chest.",
+    "battle_arena": "Random team matching. Requires 3,500 Item Points. Winner: 20 Arena coins, 20M gold, 2 Event Tokens, 200 Gift Silk. Loser: 10 Arena coins, 10M gold, 1 Event Token, 100 Gift Silk."
+  },
+  "currencies_and_shops": {
+    "silk": "Official premium currency. Acquired via donation on website (https://exiliumonline.com/account/store) or winning weekly ranks.",
+    "gift_silk": "Earned by playing and participating. Gift Silk Converter converts 500 Gift Silk into 100 Tradeable Silk in VIP/Season room.",
+    "event_coins": "Earned by participating in events, killing Server Dungeon Uniques, Treasure boxes, Fortress War (15 coins for joining). Triple (3x) Event Coins on weekends (Fri/Sat/Sun). Can be sold for 10x Exilium Tokens in NPC.",
+    "arena_coins": "Obtained from Battle Arena, quests, fishing NPC (1-25 coins for 2 tokens), and dungeon chests.",
+    "season_points": "Earned from PvP kills in events, job temple, and using Card collections (50 Season Points per card used)."
+  },
+  "terms_and_donation_policy": {
+    "payment_processors": "PayPal, MercadoPago, HipoPay, Binance Pay, Credit/Debit cards, local payment channels.",
+    "no_refund_policy": "All digital goods and Silk are delivered instantly upon purchase and are strictly non-refundable under any circumstances.",
+    "chargeback_penalty": "Initiating a dispute or chargeback will be deemed fraud and results in an immediate permanent ban (IP & HWID lock).",
+    "password_security": "Exilium Online staff will NEVER ask for your password.",
+    "off_market_trading": "Off-market real-money transactions (RMT) outside official server mechanisms are strictly prohibited."
+  },
+  "common_errors_and_fixes": [
+    {
+      "issue": "Error C9 (Connection to server failed)",
+      "cause": "Server under maintenance, port 15779 blocked, or firewall/antivirus issue.",
+      "solution_ar": "1. تأكد من قناة #announcements أو #server-status إذا كان هناك صيانة.\n2. أضف مجلد Exilium كاملاً لقائمة الاستثناءات (Exclusions) في Windows Defender.\n3. أعد تشغيل الراوتر لتجديد عنوان الـ IP.\n4. افتح اللعبة دائماً من اللانشر كمسؤول (Run as Admin).",
+      "solution_en": "1. Check #announcements or #server-status to see if maintenance is ongoing.\n2. Add the Exilium folder to your Windows Defender/Antivirus exclusions.\n3. Restart your internet router to refresh your IP.\n4. Always run the Launcher as Administrator."
+    },
+    {
+      "issue": "Error C8 (Client version mismatch)",
+      "cause": "Outdated client requiring the latest patch.",
+      "solution_ar": "افتح اللانشر كمسؤول ليقوم بتحميل آخر تحديث (Update). إذا استمرت المشكلة، حمّل ملف Media.pk2 الجديد من قناة #downloads واستبدله في مجلد اللعبة.",
+      "solution_en": "Run your Launcher as Administrator to download the latest patch. If it fails, download the updated Media.pk2 from #downloads and replace it inside your game directory."
+    },
+    {
+      "issue": "Game closes immediately / sro_client.exe disappears",
+      "cause": "Antivirus quarantined sro_client.exe as false positive or missing runtimes.",
+      "solution_ar": "1. افتح Windows Security > Protection History واضغط Restore لملف sro_client.exe.\n2. أضف مجلد اللعبة إلى Exclusions.\n3. قم بتثبيت حزمة Visual C++ All-in-One وDirectX 9.",
+      "solution_en": "1. Open Windows Security > Protection History and Restore sro_client.exe.\n2. Add the game folder to Exclusions.\n3. Install Visual C++ All-in-One Runtimes and DirectX 9."
+    },
+    {
+      "issue": "Character Stuck / Instant Disconnect upon login",
+      "cause": "Character stuck in buggy coordinate or corrupted zone.",
+      "solution_ar": "سجل الدخول في موقع exiliumonline.com واستخدم خيار Char Unstick لنقل الشخصية إلى Jangan. إذا لم تنجح، اذكر اسم الشخصية وسيقوم الآدمن بنقلها يدوياً.",
+      "solution_en": "Log into your account on exiliumonline.com and use the 'Char Unstick' feature to teleport your character to Jangan. If unresolved, provide character name for admin intervention."
+    },
+    {
+      "issue": "BSObj Plugin: can't create file transfer manager! Maybe pack file corrupted or someone is already accessing it now",
+      "cause": "sro_client.exe or silkroad.exe is running in background holding lock on pk2 files, or launcher needs update.",
+      "solution_ar": "1. افتح Task Manager (Ctrl + Shift + Esc) وابحث عن sro_client.exe و silkroad.exe واضغط End Task.\n2. افتح اللانشر كمسؤول (Run as Admin) لتحديث اللعبة.\n3. حل أسهل: أعد تشغيل جهاز الكمبيوتر وافتح اللانشر كمسؤول.",
+      "solution_en": "Method 1: Open Task Manager (Ctrl + Shift + Esc), find sro_client.exe and silkroad.exe in Processes and End Task, then reopen Launcher as Admin.\nEasier Solution: Restart your computer, then open the Exilium Launcher (silkroad.exe) as Administrator to update your client."
+    },
+    {
+      "issue": "Windows Defender blocking / deleting sro_client.exe or client closed immediately",
+      "cause": "Windows Defender update falsely detecting game files as virus (false positive).",
+      "solution_ar": "1. استثنِ مجلد Exilium كاملاً من Windows Defender: افتح Windows Security > Virus & threat protection > Manage settings > Exclusions > Add exclusion > Folder واخر مجلد اللعبة.\n2. إذا تم حذف الملف: افتح Protection History واضغط Actions > Restore لملف sro_client.exe.\n3. إذا استمرت المشكلة حمّل ملفات الكلاينت النظيفة من موقع السيرفر exiliumonline.com أو روابط التحميل الرسمية المباشرة.",
+      "solution_en": "1. Exclude the Exilium folder from Windows Defender: Open Windows Security > Virus & threat protection > Manage settings > Exclusions > Add folder > select your Exilium folder.\n2. Open Protection History and click 'Restore' on sro_client.exe.\n3. If files are corrupted, download clean files from official website exiliumonline.com or official direct mirrors."
+    },
+    {
+      "issue": "Windows 11 Clientless / Frequent Disconnects / Random Game Crash",
+      "cause": "Windows 11 windowed gaming optimizations and GPU switching interfering with game client.",
+      "solution_ar": "1. كليك يمين على سطح المكتب واضغط Display settings.\n2. انزل واضغط Graphics.\n3. اضغط Browse وحدد ملف sro_client.exe من مجلد Exilium.\n4. اضغط على sro_client.exe بالقائمة واختر Options.\n5. اختر High performance (كرت الشاشة الخارجي).\n6. فعّل خيار Don't use optimizations for windowed games.\n7. اضغط Save وأعد تشغيل اللعبة.",
+      "solution_en": "1. Right-click desktop -> select 'Display settings'.\n2. Scroll down and click 'Graphics'.\n3. Click 'Browse' -> find and select 'sro_client.exe' from your Exilium folder.\n4. Find 'sro_client.exe' on the list and click 'Options'.\n5. Select 'High performance' (dedicated GPU).\n6. Check 'Don't use optimizations for windowed games'.\n7. Click 'Save' and restart Exilium."
+    }
+  ],
+  "escalation_reasons": [
+    "Donations, payments, or Silk not received after purchasing",
+    "Account theft, stolen items, or lost credentials",
+    "Reporting hackers, bots in jobs, or exploiting bugs with proof",
+    "Bans or unban appeals",
+    "Hardware ID (HWID) reset requests",
+    "Severe technical server bugs not documented",
+    "Direct request to speak with human Admin / Owner"
+  ]
+}

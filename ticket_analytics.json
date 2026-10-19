@@ -1,0 +1,9 @@
+{
+  "tickets_total": 15,
+  "starters_given": 2,
+  "categories": {
+    "General Inquiries": 10,
+    "Starter Package Request": 2,
+    "Escalated to Staff": 3
+  }
+}
