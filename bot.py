@@ -1,3 +1,6 @@
+import urllib.request
+import zipfile
+import shutil
 import os
 import sys
 import json
@@ -1277,6 +1280,17 @@ async def on_message(message: discord.Message):
     if ticket_staff_taken_over.get(channel_id, False):
         return
 
+    # Check recent channel history to see if staff already intervened in this ticket
+    if channel_id not in ticket_staff_taken_over:
+        try:
+            async for prev_msg in message.channel.history(limit=20):
+                if prev_msg.author != bot.user and not prev_msg.author.bot and is_staff_member(prev_msg.author):
+                    ticket_staff_taken_over[channel_id] = True
+                    logger.info(f"Detected previous staff message from {prev_msg.author.display_name} in #{message.channel.name}. Bot silenced.")
+                    return
+        except Exception as e:
+            logger.warning(f"Error checking message history for staff takeover: {e}")
+
     # Reset inactivity tracker because human spoke
     if str(channel_id) in inactivity_data:
         del inactivity_data[str(channel_id)]
@@ -1416,67 +1430,111 @@ async def resume_bot_command(interaction: discord.Interaction):
     ticket_staff_taken_over.pop(interaction.channel_id, None)
     await interaction.response.send_message("▶️ تم إعادة تفعيل ردود الذكاء الاصطناعي في هذا التيكت بنجاح.", ephemeral=True)
 
+def download_github_update_sync(repo_name: str = "mrshazya-del/exilium-bot", branch: str = "main", token: str = "") -> str:
+    url = f"https://github.com/{repo_name}/archive/refs/heads/{branch}.zip"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        zip_bytes = resp.read()
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    protected_files = {
+        ".env",
+        "daily_tickets.json",
+        "inactivity_tracker.json",
+        "analytics.json"
+    }
+
+    updated_files = []
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+        for member in z.namelist():
+            parts = member.split("/", 1)
+            if len(parts) < 2 or not parts[1]:
+                continue
+            rel_path = parts[1]
+            basename = os.path.basename(rel_path)
+
+            if basename in protected_files or rel_path.startswith(".git") or "__pycache__" in rel_path:
+                continue
+
+            dest_path = os.path.join(base_dir, rel_path)
+            if member.endswith("/"):
+                os.makedirs(dest_path, exist_ok=True)
+            else:
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                with z.open(member) as src, open(dest_path, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+                updated_files.append(rel_path)
+
+    return f"Updated {len(updated_files)} files: " + ", ".join(updated_files[:6])
+
 @bot.tree.command(name="update-bot", description="سحب آخر تحديثات الكود من GitHub وإعادة تشغيل البوت تلقائياً (للإدارة فقط)")
 async def update_bot_command(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
     if not is_exilium_team_member(interaction.user):
-        await interaction.response.send_message("❌ هذا الأمر مخصص لـ 👑 EXILIUM TEAM فقط.", ephemeral=True)
+        await interaction.followup.send("❌ هذا الأمر مخصص لـ 👑 EXILIUM TEAM فقط.", ephemeral=True)
         return
 
-    await interaction.response.defer(ephemeral=True)
+    update_summary = ""
+    used_method = ""
     github_token = os.getenv("GITHUB_TOKEN", "").strip()
-    if github_token:
-        repo_url = f"https://{github_token}@github.com/mrshazya-del/exilium-bot.git"
-    else:
-        repo_url = os.getenv("GITHUB_REPO_URL", "https://github.com/mrshazya-del/exilium-bot.git").strip()
 
-    try:
-        # Check if .git directory exists; if not, initialize it
-        git_dir = os.path.join(os.path.dirname(__file__), ".git")
-        if not os.path.exists(git_dir):
-            p1 = await asyncio.create_subprocess_exec("git", "init", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-            await p1.communicate()
-            p2 = await asyncio.create_subprocess_exec("git", "remote", "add", "origin", repo_url, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-            await p2.communicate()
-        else:
-            # Update remote url in case token or URL was updated
+    # 1. Try Git if git command is available and .git exists
+    git_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".git")
+    git_worked = False
+
+    if os.path.exists(git_dir):
+        try:
+            repo_url = os.getenv("GITHUB_REPO_URL", "https://github.com/mrshazya-del/exilium-bot.git").strip()
+            if github_token:
+                repo_url = f"https://{github_token}@github.com/mrshazya-del/exilium-bot.git"
+
             p_set = await asyncio.create_subprocess_exec("git", "remote", "set-url", "origin", repo_url, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
             await p_set.communicate()
 
-        # Run git pull origin main
-        process = await asyncio.create_subprocess_exec(
-            "git", "pull", "origin", "main",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        out_msg = stdout.decode("utf-8", errors="ignore").strip()
-        err_msg = stderr.decode("utf-8", errors="ignore").strip()
+            process = await asyncio.create_subprocess_exec("git", "pull", "origin", "main", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            stdout, stderr = await process.communicate()
+            if process.returncode == 0:
+                update_summary = stdout.decode("utf-8", errors="ignore").strip()
+                used_method = "Git Pull Engine"
+                git_worked = True
+        except Exception as ge:
+            logger.warning(f"Git pull failed or git not in PATH ({ge}), falling back to direct GitHub archive...")
 
-        # Reload knowledge base
-        load_knowledge_base()
+    # 2. Fallback to direct GitHub Zip extraction (no git required)
+    if not git_worked:
+        try:
+            loop = asyncio.get_running_loop()
+            update_summary = await loop.run_in_executor(None, download_github_update_sync, "mrshazya-del/exilium-bot", "main", github_token)
+            used_method = "Direct GitHub Archive Engine"
+        except Exception as ze:
+            logger.error(f"Failed to download update via zip: {ze}")
+            await interaction.followup.send(f"⚠️ فشل تحديث البوت: `{ze}`\nيرجى التحقق من اتصال السيرفر بالإنترنت أو حالة مستودع GitHub.", ephemeral=True)
+            return
 
-        status_text = out_msg if out_msg else (err_msg if err_msg else "Updated successfully.")
-        embed = discord.Embed(
-            title="🔄 Exilium Bot Auto-Updater",
-            description=(
-                f"**Git Pull Result:**\n```{status_text[:800]}```\n\n"
-                "🚀 **جاري إعادة تشغيل البوت الآن بالنسخة الجديدة...**\n"
-                "سيعود البوت للعمل خلال ثانية واحدة تلقائياً."
-            ),
-            color=0x2ECC71
-        )
-        embed.set_footer(text=f"طلب بواسطة: {interaction.user.display_name}")
-        await interaction.followup.send(embed=embed, ephemeral=True)
+    # Reload knowledge base
+    load_knowledge_base()
 
-        logger.info(f"Auto-update triggered by {interaction.user}. Restarting process...")
-        await asyncio.sleep(1.0)
+    embed = discord.Embed(
+        title="🔄 Exilium Bot Auto-Updater",
+        description=(
+            f"**طريقة التحديث:** `{used_method}`\n"
+            f"**النتيجة:**\n```{update_summary[:800]}```\n\n"
+            "🚀 **جاري إعادة تشغيل البوت بالنسخة الجديدة تلقائياً الآن...**\n"
+            "سيعود البوت للعمل خلال ثانية واحدة."
+        ),
+        color=0x2ECC71
+    )
+    embed.set_footer(text=f"طلب بواسطة: {interaction.user.display_name}")
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
-        # Restart bot process
-        os.execv(sys.executable, [sys.executable] + sys.argv)
-
-    except Exception as e:
-        logger.error(f"Error in /update-bot: {e}")
-        await interaction.followup.send(f"⚠️ فشل التحديث التلقائي: `{e}`\n(تأكد من وجود git في الـ PATH على السيرفر).", ephemeral=True)
+    logger.info(f"Auto-update successful via {used_method} by {interaction.user}. Restarting process...")
+    await asyncio.sleep(1.0)
+    os.execv(sys.executable, [sys.executable] + sys.argv)
 
 # -------------------------------------------------------------
 # Main Runner
