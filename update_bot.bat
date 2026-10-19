@@ -1,5 +1,5 @@
 @echo off
-title Exilium Bot Manual Updater
+title Exilium Bot Updater
 cd /d "%~dp0"
 
 echo =========================================================
@@ -7,19 +7,23 @@ echo    PULLING LATEST EXILIUM BOT UPDATES FROM GITHUB
 echo =========================================================
 echo.
 
-if not exist ".git" (
-    echo [*] Initializing Git repository...
-    git init
-    git remote add origin https://github.com/mrshazya-del/exilium-bot.git
+where git >nul 2>nul
+if %errorlevel% equ 0 (
+    echo [*] Git detected. Pulling updates via Git...
+    if not exist ".git" (
+        git init
+        git remote add origin https://github.com/mrshazya-del/exilium-bot.git
+    ) else (
+        git remote set-url origin https://github.com/mrshazya-del/exilium-bot.git
+    )
+    git pull origin main
 ) else (
-    git remote set-url origin https://github.com/mrshazya-del/exilium-bot.git
+    echo [*] Git not found. Downloading updates directly from GitHub Archive...
+    python -c "import bot; print(bot.download_github_update_sync())"
 )
 
-echo [*] Pulling updates from GitHub...
-git pull origin main
-
 echo.
-echo [*] Dependencies check...
+echo [*] Checking dependencies...
 python -m pip install -r requirements.txt --quiet
 
 echo.
