@@ -62,7 +62,7 @@ raw_prefixes = os.getenv("TICKET_CHANNEL_PREFIXES", "ticket-,support-,ticket_")
 TICKET_CHANNEL_PREFIXES = [p.strip().lower() for p in raw_prefixes.split(",") if p.strip()]
 TICKET_CATEGORY_ID = os.getenv("TICKET_CATEGORY_ID", "").strip()
 
-BOT_VERSION = "2.1.2"
+BOT_VERSION = "2.1.5"
 BOT_BUILD_DATE = "2026-10-20"
 
 # Community / Lobby Channels & Category IDs
@@ -192,11 +192,12 @@ def kill_other_bot_instances() -> list:
     return killed
 
 def sanitize_ign(raw_ign: str) -> str:
-    """Strictly strip newlines, spaces, and special symbols to prevent command injection."""
+    """Strictly strip newlines, spaces, and command injection symbols while fully preserving valid Silkroad IGN characters: [], (), _, -, ., ~."""
     if not raw_ign:
         return ""
-    clean = re.sub(r"[^\w\.\-]", "", raw_ign).strip()
-    return clean[:20]
+    # Strip dangerous newlines and injection characters, but keep brackets and underscores
+    clean = re.sub(r"[^\w\.\-\(\)\[\]\~]", "", raw_ign).strip()
+    return clean[:25]
 
 # -------------------------------------------------------------
 # Global States & Watchdogs
@@ -733,79 +734,155 @@ async def execute_starter_dispatch(
         logger.error(f"Error dispatching starter commands: {e}")
         await ticket_channel.send(f"⚠️ Error dispatching starter commands: {e}")
 
-class StarterSelect(discord.ui.Select):
-    def __init__(self, ign: str):
-        self.ign = ign
-        options = [
-            discord.SelectOption(
-                label="Starter Equipment Package",
-                description="Deliver starter gear and beginner items",
-                value="pkg",
-                emoji="📦",
-                default=True
-            ),
-            discord.SelectOption(
-                label="1,500 Silk Gift",
-                description="Deliver 1,500 silk to player",
-                value="silk",
-                emoji="💎",
-                default=True
-            ),
-            discord.SelectOption(
-                label="Beta Box",
-                description="Deliver official Beta Box",
-                value="beta",
-                emoji="🎁",
-                default=True
-            ),
-            discord.SelectOption(
-                label="SRO Zone Box",
-                description="Deliver official SRO Zone Box",
-                value="zone",
-                emoji="🧰",
-                default=True
-            ),
-        ]
-        super().__init__(
-            placeholder="حدد الباقات المراد إرسالها...",
-            min_values=1,
-            max_values=4,
-            options=options,
-            custom_id=f"starter_select_{ign[:10]}"
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        if not is_exilium_team_member(interaction.user):
-            await interaction.response.send_message("❌ هذا الإجراء مخصص لـ [GM]STAM وأعضاء 👑 EXILIUM TEAM فقط.", ephemeral=True)
-            return
-        self.view.selected_values = self.values
-        await interaction.response.defer()
-
 class StarterApprovalView(discord.ui.View):
     def __init__(self, ign: str, ticket_channel: discord.TextChannel, target_user: Optional[discord.User] = None):
         super().__init__(timeout=None)
         self.ign = sanitize_ign(ign)
         self.ticket_channel = ticket_channel
         self.target_user = target_user
-        self.selected_values = ["pkg", "silk", "beta", "zone"]
 
-        self.select_menu = StarterSelect(self.ign)
-        self.add_item(self.select_menu)
+        self.selected = {
+            "pkg": False,
+            "silk": False,
+            "beta": False,
+            "zone": False
+        }
 
-    @discord.ui.button(
-        label="إرسال المختار",
-        style=discord.ButtonStyle.success,
-        emoji="🚀",
-        custom_id="exilium_dispatch_starter_selected"
-    )
-    async def confirm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        cid_tag = re.sub(r"[^\w]", "", self.ign)[:8] or "player"
+        self.btn_pkg = discord.ui.Button(
+            label="Starter Gear [OFF]",
+            emoji="📦",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"st_pkg_{cid_tag}",
+            row=0
+        )
+        self.btn_pkg.callback = self.toggle_pkg
+
+        self.btn_silk = discord.ui.Button(
+            label="1,500 Silk [OFF]",
+            emoji="💎",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"st_silk_{cid_tag}",
+            row=0
+        )
+        self.btn_silk.callback = self.toggle_silk
+
+        self.btn_beta = discord.ui.Button(
+            label="Beta Box [OFF]",
+            emoji="🎁",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"st_beta_{cid_tag}",
+            row=1
+        )
+        self.btn_beta.callback = self.toggle_beta
+
+        self.btn_zone = discord.ui.Button(
+            label="SRO Zone Box [OFF]",
+            emoji="🧰",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"st_zone_{cid_tag}",
+            row=1
+        )
+        self.btn_zone.callback = self.toggle_zone
+
+        self.btn_dispatch = discord.ui.Button(
+            label="🚀 Deliver Selected",
+            style=discord.ButtonStyle.primary,
+            custom_id=f"st_send_{cid_tag}",
+            row=2
+        )
+        self.btn_dispatch.callback = self.dispatch_callback
+
+        self.btn_decline = discord.ui.Button(
+            label="❌ Decline Request",
+            style=discord.ButtonStyle.danger,
+            custom_id=f"st_dec_{cid_tag}",
+            row=2
+        )
+        self.btn_decline.callback = self.decline_callback
+
+        self.add_item(self.btn_pkg)
+        self.add_item(self.btn_silk)
+        self.add_item(self.btn_beta)
+        self.add_item(self.btn_zone)
+        self.add_item(self.btn_dispatch)
+        self.add_item(self.btn_decline)
+
+    def _update_button_visuals(self):
+        self.btn_pkg.style = discord.ButtonStyle.success if self.selected["pkg"] else discord.ButtonStyle.secondary
+        self.btn_pkg.label = "Starter Gear [ON]" if self.selected["pkg"] else "Starter Gear [OFF]"
+
+        self.btn_silk.style = discord.ButtonStyle.success if self.selected["silk"] else discord.ButtonStyle.secondary
+        self.btn_silk.label = "1,500 Silk [ON]" if self.selected["silk"] else "1,500 Silk [OFF]"
+
+        self.btn_beta.style = discord.ButtonStyle.success if self.selected["beta"] else discord.ButtonStyle.secondary
+        self.btn_beta.label = "Beta Box [ON]" if self.selected["beta"] else "Beta Box [OFF]"
+
+        self.btn_zone.style = discord.ButtonStyle.success if self.selected["zone"] else discord.ButtonStyle.secondary
+        self.btn_zone.label = "SRO Zone Box [ON]" if self.selected["zone"] else "SRO Zone Box [OFF]"
+
+    def get_summary_text(self) -> str:
+        lines = [
+            f"• 📦 **Starter Equipment:** {'✅ `Included`' if self.selected['pkg'] else '⬜ `Excluded`'}",
+            f"• 💎 **1,500 Silk Gift:** {'✅ `Included`' if self.selected['silk'] else '⬜ `Excluded`'}",
+            f"• 🎁 **Beta Box:** {'✅ `Included`' if self.selected['beta'] else '⬜ `Excluded`'}",
+            f"• 🧰 **SRO Zone Box:** {'✅ `Included`' if self.selected['zone'] else '⬜ `Excluded`'}"
+        ]
+        return "\n".join(lines)
+
+    async def _handle_toggle(self, interaction: discord.Interaction, key: str):
         if not is_exilium_team_member(interaction.user):
-            await interaction.response.send_message("❌ هذا الإجراء مخصص لـ [GM]STAM وأعضاء 👑 EXILIUM TEAM فقط.", ephemeral=True)
+            await interaction.response.send_message("❌ This action is restricted to [GM]STAM and 👑 EXILIUM TEAM only.", ephemeral=True)
+            return
+
+        self.selected[key] = not self.selected[key]
+        self._update_button_visuals()
+
+        embed = interaction.message.embeds[0] if interaction.message.embeds else discord.Embed(title="🎁 Starter Package Dispatch")
+        warning_part = ""
+        desc = embed.description or ""
+        if "⚠️ **Duplicate Claim Warning:" in desc:
+            w_idx = desc.find("⚠️ **Duplicate Claim Warning:")
+            w_end = desc.find("\n\n**Delivery Checklist", w_idx)
+            if w_end != -1:
+                warning_part = "\n\n" + desc[w_idx:w_end]
+            else:
+                warning_part = "\n\n" + desc[w_idx:]
+
+        embed.description = (
+            f"**Player IGN:** `{self.ign}`{warning_part}\n\n"
+            f"**Delivery Checklist (Click buttons to toggle ON/OFF):**\n"
+            f"{self.get_summary_text()}\n\n"
+            f"👉 When ready, click **[🚀 Deliver Selected]** below."
+        )
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    async def toggle_pkg(self, interaction: discord.Interaction):
+        await self._handle_toggle(interaction, "pkg")
+
+    async def toggle_silk(self, interaction: discord.Interaction):
+        await self._handle_toggle(interaction, "silk")
+
+    async def toggle_beta(self, interaction: discord.Interaction):
+        await self._handle_toggle(interaction, "beta")
+
+    async def toggle_zone(self, interaction: discord.Interaction):
+        await self._handle_toggle(interaction, "zone")
+
+    async def dispatch_callback(self, interaction: discord.Interaction):
+        if not is_exilium_team_member(interaction.user):
+            await interaction.response.send_message("❌ This action is restricted to [GM]STAM and 👑 EXILIUM TEAM only.", ephemeral=True)
+            return
+
+        selected_keys = [k for k, v in self.selected.items() if v]
+        if not selected_keys:
+            await interaction.response.send_message("⚠️ Please enable at least one reward package before delivering!", ephemeral=True)
             return
 
         for child in self.children:
             child.disabled = True
-        button.label = f"✅ تم الإرسال لـ {self.ign}"
+        self.btn_dispatch.label = f"✅ Delivered to {self.ign}"
+        self.btn_dispatch.style = discord.ButtonStyle.success
         await interaction.response.edit_message(view=self)
 
         await execute_starter_dispatch(
@@ -813,26 +890,20 @@ class StarterApprovalView(discord.ui.View):
             self.ign,
             self.ticket_channel,
             confirmed_by=interaction.user,
-            selected_items=self.selected_values,
+            selected_items=selected_keys,
             target_user=self.target_user
         )
 
-    @discord.ui.button(
-        label="رفض الطلب",
-        style=discord.ButtonStyle.danger,
-        emoji="❌",
-        custom_id="exilium_decline_starter_btn"
-    )
-    async def decline_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def decline_callback(self, interaction: discord.Interaction):
         if not is_exilium_team_member(interaction.user):
-            await interaction.response.send_message("❌ هذا الإجراء مخصص لـ [GM]STAM وأعضاء 👑 EXILIUM TEAM فقط.", ephemeral=True)
+            await interaction.response.send_message("❌ This action is restricted to [GM]STAM and 👑 EXILIUM TEAM only.", ephemeral=True)
             return
 
         for child in self.children:
             child.disabled = True
-        button.label = "❌ تم الرفض"
+        self.btn_decline.label = "❌ Request Declined"
         await interaction.response.edit_message(view=self)
-        await self.ticket_channel.send(f"❌ تم رفض طلب باقة البداية للشخصية `{self.ign}` بواسطة الإدارة.")
+        await self.ticket_channel.send(f"❌ Starter package request for `{self.ign}` has been declined by administration.")
 
 # -------------------------------------------------------------
 # Discord Bot Setup & Views
@@ -1317,18 +1388,20 @@ async def process_ticket_ai_reply(
             if history_check:
                 rec = history_check["record"]
                 warning_text = (
-                    f"\n\n⚠️ **تحذير للمشرف (Duplicate Warning):**\n"
-                    f"هذا الحساب سبق له استلام الباكدج لشخصية `{rec.get('ign')}` بتاريخ `{rec.get('date')}` "
-                    f"باعتماد المشرف `{rec.get('approved_by')}`!"
+                    f"\n\n⚠️ **Duplicate Claim Warning:**\n"
+                    f"This account previously claimed starter rewards for `{rec.get('ign')}` on `{rec.get('date')}` "
+                    f"approved by `{rec.get('approved_by')}`!"
                 )
 
             approval_view = StarterApprovalView(ign=clean_ign, ticket_channel=channel, target_user=author if not author.bot else None)
             approval_embed = discord.Embed(
-                title="🎁 Starter Package Request",
+                title="🎁 Starter Package Request Approval",
                 description=(
-                    f"**Player IGN:** `{clean_ign}`\n"
-                    f"**Discord User:** {author.mention} (`{author.name}`){warning_text}\n\n"
-                    f"👉 **الإجراء المطلوب:** حدد الباقات المراد تسليمها للاعب من القائمة أدناه، ثم اضغط **[إرسال المختار]**."
+                    f"• **Applicant Character (IGN):** `{clean_ign}`\n"
+                    f"• **Discord User:** {author.mention} (`{author.name}`){warning_text}\n\n"
+                    f"**Delivery Checklist (Click buttons to toggle ON/OFF):**\n"
+                    f"{approval_view.get_summary_text()}\n\n"
+                    f"👉 When ready, click **[🚀 Deliver Selected]** below."
                 ),
                 color=0xF1C40F if not history_check else 0xE67E22
             )
@@ -1819,17 +1892,19 @@ async def give_starter_command(interaction: discord.Interaction, ign: str):
     if history_check:
         rec = history_check["record"]
         warning_text = (
-            f"\n\n⚠️ **تحذير (Duplicate Warning):**\n"
-            f"هذا الـ IGN سبق له استلام الباكدج بتاريخ `{rec.get('date')}` "
-            f"باعتماد المشرف `{rec.get('approved_by')}`!"
+            f"\n\n⚠️ **Duplicate Claim Warning:**\n"
+            f"This IGN previously claimed starter rewards on `{rec.get('date')}` "
+            f"approved by `{rec.get('approved_by')}`!"
         )
 
     approval_view = StarterApprovalView(ign=clean_ign, ticket_channel=interaction.channel)
     embed = discord.Embed(
-        title="🎁 Manual Starter Package Dispatch",
+        title="🎁 Manual Starter Rewards Dispatch",
         description=(
-            f"**Player IGN:** `{clean_ign}`{warning_text}\n\n"
-            f"👉 حدد الباقات المراد تسليمها ثم اضغط **[إرسال المختار]**."
+            f"• **Player Character (IGN):** `{clean_ign}`{warning_text}\n\n"
+            f"**Delivery Checklist (Click buttons to toggle ON/OFF):**\n"
+            f"{approval_view.get_summary_text()}\n\n"
+            f"👉 When ready, click **[🚀 Deliver Selected]** below."
         ),
         color=0xF1C40F if not history_check else 0xE67E22
     )
