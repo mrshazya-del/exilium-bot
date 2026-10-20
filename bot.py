@@ -62,7 +62,7 @@ raw_prefixes = os.getenv("TICKET_CHANNEL_PREFIXES", "ticket-,support-,ticket_")
 TICKET_CHANNEL_PREFIXES = [p.strip().lower() for p in raw_prefixes.split(",") if p.strip()]
 TICKET_CATEGORY_ID = os.getenv("TICKET_CATEGORY_ID", "").strip()
 
-BOT_VERSION = "2.1.1"
+BOT_VERSION = "2.1.2"
 BOT_BUILD_DATE = "2026-10-20"
 
 # Community / Lobby Channels & Category IDs
@@ -1436,16 +1436,16 @@ async def on_ready():
         logger.info("Started weekly report background loop.")
 
     try:
+        # Clean up any duplicate guild-scoped commands so only single global commands exist
         for g in bot.guilds:
             try:
-                bot.tree.copy_global_to(guild=g)
-                guild_synced = await bot.tree.sync(guild=g)
-                logger.info(f"Instantly synced {len(guild_synced)} slash commands to guild '{g.name}' (ID: {g.id})")
+                bot.tree.clear_commands(guild=g)
+                await bot.tree.sync(guild=g)
             except Exception as ge:
-                logger.warning(f"Could not sync to guild {g.id}: {ge}")
+                logger.warning(f"Could not clear guild commands for {g.id}: {ge}")
 
         synced = await bot.tree.sync()
-        logger.info(f"Synced {len(synced)} global slash commands.")
+        logger.info(f"Cleanly synced {len(synced)} unique global slash commands.")
     except Exception as e:
         logger.error(f"Failed to sync slash commands: {e}")
 
