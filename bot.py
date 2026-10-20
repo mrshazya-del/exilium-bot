@@ -481,7 +481,7 @@ def generate_daily_report_embed(date_str: str) -> discord.Embed:
     resolved = sum(1 for t in day_records.values() if "Resolved" in t.get("status", ""))
     starters = sum(1 for t in day_records.values() if "Starter" in t.get("status", ""))
     escalated = sum(1 for t in day_records.values() if "Escalated" in t.get("status", ""))
-    in_progress = total - resolved
+    in_progress = sum(1 for t in day_records.values() if "In Progress" in t.get("status", ""))
 
     embed = discord.Embed(
         title=f"📋 Exilium Daily Support Report — {date_str}",
@@ -2004,30 +2004,57 @@ async def maintenance_command(interaction: discord.Interaction, status: app_comm
 # Item 20: Staff Multi-Language Reply Command
 @bot.tree.command(name="staff-reply", description="Translate staff reply into player ticket language and send as official support")
 @app_commands.describe(
-    text="Your reply message to be translated automatically for the player",
+    text="Your reply message to be translated for the player",
+    language="Target language (Default: Auto-Detect player's language)",
     close_after="Attach a 1-click Close Ticket button below the message (True/False)"
 )
-async def staff_reply_command(interaction: discord.Interaction, text: str, close_after: bool = False):
+@app_commands.choices(language=[
+    app_commands.Choice(name="Auto-Detect (Player's Language)", value="auto"),
+    app_commands.Choice(name="English", value="English"),
+    app_commands.Choice(name="Turkish (Türkçe)", value="Turkish"),
+    app_commands.Choice(name="Arabic (العربية)", value="Arabic"),
+    app_commands.Choice(name="Portuguese (Português)", value="Portuguese"),
+    app_commands.Choice(name="German (Deutsch)", value="German"),
+    app_commands.Choice(name="Spanish (Español)", value="Spanish"),
+    app_commands.Choice(name="French (Français)", value="French"),
+    app_commands.Choice(name="Russian (Русский)", value="Russian"),
+])
+async def staff_reply_command(
+    interaction: discord.Interaction, 
+    text: str, 
+    language: app_commands.Choice[str] = None, 
+    close_after: bool = False
+):
     if not is_staff_member(interaction.user):
-        await interaction.response.send_message("❌ هذا الأمر مخصص للستاف فقط.", ephemeral=True)
+        await interaction.response.send_message("❌ This command is restricted to Staff members.", ephemeral=True)
         return
 
-    await interaction.response.defer()
+    # Defer ephemerally so the command execution bubble is 100% private to staff
+    await interaction.response.defer(ephemeral=True)
 
-    # Detect channel language from recent history
-    conversation_sample = ""
-    async for m in interaction.channel.history(limit=10, oldest_first=True):
-        if m.author != bot.user and not m.author.bot:
-            conversation_sample += f"{m.content}\n"
+    target_lang = language.value if language else "auto"
 
-    translate_prompt = (
-        f"You are the official Exilium Support Translator.\n"
-        f"A staff member wants to reply to this player.\n"
-        f"Player's recent messages context:\n{conversation_sample}\n\n"
-        f"Translate the following staff message into the EXACT language of the player (e.g. Turkish if player speaks Turkish; Portuguese if Portuguese; English if English/unknown; Arabic if Arabic):\n"
-        f"'{text}'\n\n"
-        f"Provide ONLY the translated text in a friendly, gamer-appropriate support tone:"
-    )
+    if target_lang == "auto":
+        # Scan recent messages (newest first) specifically from the player (non-staff)
+        conversation_sample = ""
+        async for m in interaction.channel.history(limit=25, oldest_first=False):
+            if m.author != bot.user and not m.author.bot and not is_staff_member(m.author):
+                conversation_sample = f"{m.content}\n" + conversation_sample
+        
+        translate_prompt = (
+            "You are the official Exilium Support Translator.\n"
+            "A staff member wants to reply to this player.\n"
+            f"Player's recent messages context:\n{conversation_sample or 'English default'}\n\n"
+            "Translate the following staff message into the EXACT language of the player (e.g. Turkish if player speaks Turkish; Portuguese if Portuguese; English if English/unknown; Arabic if Arabic):\n"
+            f"'{text}'\n\n"
+            "Provide ONLY the translated text in a friendly, gamer-appropriate support tone without quotes or explanations:"
+        )
+    else:
+        translate_prompt = (
+            f"Translate the following staff support message into {target_lang}.\n"
+            f"Message: '{text}'\n\n"
+            "Provide ONLY the translated text in a friendly, professional gamer-appropriate tone without quotes or explanations:"
+        )
 
     try:
         translated_text = await generate_ai_text_async(translate_prompt)
@@ -2042,16 +2069,20 @@ async def staff_reply_command(interaction: discord.Interaction, text: str, close
         )
         embed.set_footer(text=f"Sent by {interaction.user.display_name} • Official Exilium Support")
 
+        # Send public message into ticket channel
         await interaction.channel.send(embed=embed, view=view)
-        await interaction.followup.send("✅ تم إرسال الرد المترجم بنجاح للاعب!", ephemeral=True)
+
+        # Send private confirmation to staff
+        lang_display = target_lang if target_lang != "auto" else "Auto-Detected"
+        await interaction.followup.send(
+            f"✅ **Reply sent to ticket ({lang_display}):**\n> {translated_clean}", 
+            ephemeral=True
+        )
 
     except Exception as e:
         logger.error(f"Error in /staff-reply: {e}")
-        await interaction.followup.send(f"⚠️ فشلت الترجمة: {e}", ephemeral=True)
+        await interaction.followup.send(f"⚠️ Translation failed: {e}", ephemeral=True)
 
-# -------------------------------------------------------------
-# Auto-Updater Engine
-# -------------------------------------------------------------
 def download_github_update_sync(repo_name: str = "mrshazya-del/exilium-bot", branch: str = "main", token: str = "") -> str:
     url = f"https://github.com/{repo_name}/archive/refs/heads/{branch}.zip"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
