@@ -1452,7 +1452,9 @@ async def on_message(message: discord.Message):
         sro_keywords = [
             "exilium", "sro", "silk", "download", "launcher", "crash", "c9", "c8",
             "rate", "cap", "starter", "som", "moon", "alchemy", "bot", "oyun", "nasil",
-            "nereden", "indir", "ازاي", "فين", "ليه", "مشكلة", "سيلك", "باكدج"
+            "nereden", "indir", "ازاي", "فين", "ليه", "مشكلة", "سيلك", "باكدج",
+            "question", "ask", "help", "problem", "issue", "سؤال", "مساعدة",
+            "soru", "yardim", "ajuda", "duvida", "hilfe"
         ]
         has_keyword = any(k in content_clean for k in sro_keywords)
 
@@ -1470,8 +1472,9 @@ async def on_message(message: discord.Message):
             f"You are Exilium Community AI. A player asked this in a public chat channel:\n"
             f"'{message.content}'\n\n"
             f"RULES:\n"
-            f"1. If this is a question or inquiry about Exilium Silkroad Online (gameplay, issues, rates, rules, schedules, mechanics): reply helpfully and concisely in 1 to 2 sentences in the player's language.\n"
-            f"2. If this is casual chat, player banter, trading/WTS/WTB, greetings between two players, off-topic, or not an Exilium inquiry: output ONLY the exact word '[IGNORE]'.\n"
+            f"1. If this is a question, asking for help, or asking if they can ask a question (e.g. 'I have a question', 'can I ask', 'عندي سؤال', 'sorum var'): reply warmly and concisely in 1 to 2 sentences in the player's language welcoming them and telling them to go ahead with their question or open a support ticket.\n"
+            f"2. If this is an inquiry about Exilium Silkroad Online (gameplay, issues, rates, schedules, mechanics): reply helpfully and concisely in 1 to 2 sentences in the player's language.\n"
+            f"3. If this is purely casual chat between players, jokes, trading/WTS/WTB, or off-topic chatter: output ONLY the exact word '[IGNORE]'.\n"
             f"Your response:"
         )
         try:
