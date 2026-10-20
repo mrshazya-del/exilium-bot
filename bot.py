@@ -62,12 +62,14 @@ raw_prefixes = os.getenv("TICKET_CHANNEL_PREFIXES", "ticket-,support-,ticket_")
 TICKET_CHANNEL_PREFIXES = [p.strip().lower() for p in raw_prefixes.split(",") if p.strip()]
 TICKET_CATEGORY_ID = os.getenv("TICKET_CATEGORY_ID", "").strip()
 
-BOT_VERSION = "2.1.5"
+BOT_VERSION = "2.2.0"
 BOT_BUILD_DATE = "2026-10-20"
 
 # Community / Lobby Channels & Category IDs
 COMMUNITY_CATEGORY_ID = os.getenv("COMMUNITY_CATEGORY_ID", "1244300178819911747").strip()
 LOBBY_CHANNEL_ID = os.getenv("LOBBY_CHANNEL_ID", "1244300028659630202").strip()
+TICKET_PANEL_CHANNEL_ID = os.getenv("TICKET_PANEL_CHANNEL_ID", "1299021224382562334").strip()
+TICKET_PANEL_URL = "https://discord.com/channels/1203340178605735966/1299021224382562334"
 
 raw_community = os.getenv("COMMUNITY_CHANNELS", "lobby,english,arabic,turkish,portuguese,french,spanish,german,russian,dutch,hungarian,balkan,filipino,romanian,hebrew,vietnamese,polish")
 COMMUNITY_CHANNELS = [c.strip().lower() for c in raw_community.split(",") if c.strip()]
@@ -988,6 +990,16 @@ class DownloadHelpView(discord.ui.View):
             emoji="🌐"
         ))
 
+class TicketRedirectView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(discord.ui.Button(
+            label="Open Support Ticket",
+            url=TICKET_PANEL_URL,
+            emoji="🎫",
+            style=discord.ButtonStyle.link
+        ))
+
 class StaffCloseView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -1560,11 +1572,19 @@ async def on_message(message: discord.Message):
         return
 
     # =============================================================
-    # Case A: Community / Lobby / Language Chat Channels (Item 15)
+    # Case A: Community / Lobby / Language Chat Channels (Mention-Only & Ticket Guide)
     # =============================================================
     if is_community and not is_ticket:
         # Strictly ignore all bots and webhooks to prevent loops
         if message.author.bot or message.webhook_id:
+            return
+
+        # MENTION-ONLY GUARD: The bot NEVER interrupts casual conversations in public channels.
+        # It ONLY speaks if explicitly mentioned or replied to by a player!
+        is_mentioned = bot.user.mentioned_in(message) or (
+            message.reference and getattr(message.reference.resolved, "author", None) == bot.user
+        )
+        if not is_mentioned:
             return
 
         now = time.time()
@@ -1581,50 +1601,42 @@ async def on_message(message: discord.Message):
 
         # Non-spammy emoji reaction on gratitude
         gratitude_words = {"thanks", "thank you", "thx", "ty", "شكرا", "تسلم", "مشكور", "sagol", "sağol", "eyvallah", "obrigado", "danke"}
-        if any(w == content_clean or content_clean.startswith(w) for w in gratitude_words):
+        if any(w in content_clean for w in gratitude_words):
             try:
                 await message.add_reaction("👍")
             except Exception:
                 pass
             return
 
-        has_question = any(q in message.content for q in ["?", "؟"])
-        sro_keywords = [
-            "exilium", "sro", "silk", "download", "launcher", "crash", "c9", "c8",
-            "rate", "cap", "starter", "som", "moon", "alchemy", "bot", "oyun", "nasil",
-            "nereden", "indir", "ازاي", "فين", "ليه", "مشكلة", "سيلك", "باكدج",
-            "question", "ask", "help", "problem", "issue", "سؤال", "مساعدة",
-            "soru", "yardim", "ajuda", "duvida", "hilfe"
-        ]
-        has_keyword = any(k in content_clean for k in sro_keywords)
+        community_channel_cooldown[cid] = now
+        community_user_cooldown[uid] = now
 
-        if not has_question and not has_keyword and not bot.user.mentioned_in(message):
-            return
-
+        # Fast-Path for download queries
         fast_dl = check_download_fast_path(message.content)
         if fast_dl:
-            community_channel_cooldown[cid] = now
-            community_user_cooldown[uid] = now
-            await message.reply(fast_dl, mention_author=True)
+            reply_text = (
+                f"{fast_dl}\n\n"
+                f"💡 *Need further assistance or have an issue? Please open a ticket in <#{TICKET_PANEL_CHANNEL_ID}>!*"
+            )
+            await message.reply(reply_text, view=TicketRedirectView(), mention_author=True)
             return
 
         prompt = (
-            f"You are Exilium Community AI. A player asked this in a public chat channel:\n"
+            f"You are Exilium Support Assistant. A player mentioned/tagged you in a public chat channel asking:\n"
             f"'{message.content}'\n\n"
             f"RULES:\n"
-            f"1. If this is a question, asking for help, or asking if they can ask a question (e.g. 'I have a question', 'can I ask', 'عندي سؤال', 'sorum var'): reply warmly and concisely in 1 to 2 sentences in the player's language welcoming them and telling them to go ahead with their question or open a support ticket.\n"
-            f"2. If this is an inquiry about Exilium Silkroad Online (gameplay, issues, rates, schedules, mechanics): reply helpfully and concisely in 1 to 2 sentences in the player's language.\n"
-            f"3. If this is purely casual chat between players, jokes, trading/WTS/WTB, or off-topic chatter: output ONLY the exact word '[IGNORE]'.\n"
+            f"1. Reply warmly, politely, and concisely in 1 to 2 sentences in the player's exact language (English, Arabic, Turkish, etc.).\n"
+            f"2. If it's a general game inquiry, answer it briefly and clearly.\n"
+            f"3. Always guide them to open an official support ticket in <#{TICKET_PANEL_CHANNEL_ID}> for account issues, bug reports, starter packages, or detailed technical help.\n"
             f"Your response:"
         )
-        community_channel_cooldown[cid] = now
-        community_user_cooldown[uid] = now
+
         try:
             ai_reply = await generate_ai_text_async(prompt)
             if ai_reply and "[IGNORE]" not in ai_reply:
                 clean_ans = ai_reply.replace("[ESCALATE_TO_ADMIN]", "").replace("[TICKET_RESOLVED]", "").strip()
                 if clean_ans:
-                    await message.reply(clean_ans[:1900], mention_author=True)
+                    await message.reply(clean_ans[:1900], view=TicketRedirectView(), mention_author=True)
         except Exception as e:
             logger.warning(f"Error in community chat AI: {e}")
         return
