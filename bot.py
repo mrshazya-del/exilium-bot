@@ -61,7 +61,13 @@ raw_prefixes = os.getenv("TICKET_CHANNEL_PREFIXES", "ticket-,support-,ticket_")
 TICKET_CHANNEL_PREFIXES = [p.strip().lower() for p in raw_prefixes.split(",") if p.strip()]
 TICKET_CATEGORY_ID = os.getenv("TICKET_CATEGORY_ID", "").strip()
 
-# Community / Lobby Channels for AI Assistance
+BOT_VERSION = "2.1.0"
+BOT_BUILD_DATE = "2026-10-20"
+
+# Community / Lobby Channels & Category IDs
+COMMUNITY_CATEGORY_ID = os.getenv("COMMUNITY_CATEGORY_ID", "1244300178819911747").strip()
+LOBBY_CHANNEL_ID = os.getenv("LOBBY_CHANNEL_ID", "1244300028659630202").strip()
+
 raw_community = os.getenv("COMMUNITY_CHANNELS", "lobby,english,arabic,turkish,portuguese,french,spanish,german,russian,dutch,hungarian,balkan,filipino,romanian,hebrew,vietnamese,polish")
 COMMUNITY_CHANNELS = [c.strip().lower() for c in raw_community.split(",") if c.strip()]
 
@@ -115,14 +121,29 @@ def is_staff_member(user: discord.abc.User) -> bool:
     return False
 
 def is_community_channel(channel: discord.abc.GuildChannel) -> bool:
-    """Check if channel is a designated community/lobby/language channel."""
+    """Check if channel is a designated community/lobby/language channel by ID, Category, or Name."""
     if not hasattr(channel, "name"):
         return False
-    cname = channel.name.lower()
+
     cid_str = str(channel.id)
+
+    # 1. Direct match with designated Lobby Channel ID
+    if LOBBY_CHANNEL_ID and cid_str == LOBBY_CHANNEL_ID:
+        return True
+
+    # 2. Direct match with Community Category ID (covers ALL language channels inside it!)
+    cat_id = getattr(channel, "category_id", None)
+    if cat_id is None and hasattr(channel, "category") and channel.category:
+        cat_id = channel.category.id
+    if cat_id and str(cat_id) == COMMUNITY_CATEGORY_ID:
+        return True
+
+    # 3. Fallback match by channel name or comma-separated list
+    cname = channel.name.lower()
     for allowed in COMMUNITY_CHANNELS:
         if allowed == cid_str or allowed == cname or (len(allowed) >= 4 and allowed in cname):
             return True
+
     return False
 
 def sanitize_ign(raw_ign: str) -> str:
@@ -1382,7 +1403,7 @@ async def on_ready():
     except Exception as e:
         logger.error(f"Failed to sync slash commands: {e}")
 
-    activity_name = "⚠️ Maintenance Mode | Exilium SRO" if maintenance_mode else "Exilium SRO | Support Tickets"
+    activity_name = f"⚠️ Maintenance | v{BOT_VERSION}" if maintenance_mode else f"Exilium SRO | v{BOT_VERSION}"
     activity = discord.Game(name=activity_name)
     await bot.change_presence(status=discord.Status.online, activity=activity)
 
@@ -1914,6 +1935,26 @@ def download_github_update_sync(repo_name: str = "mrshazya-del/exilium-bot", bra
 
     return f"Updated {len(updated_files)} files: " + ", ".join(updated_files[:6])
 
+@bot.tree.command(name="version", description="عرض رقم إصدار البوت الحالي وحالة النظام (Bot Version & Info)")
+async def version_command(interaction: discord.Interaction):
+    latency = round(bot.latency * 1000, 2) if bot.is_ready() else 0
+    desc_lines = [
+        f"• **Version:** `v{BOT_VERSION}`",
+        f"• **Build Date:** `{BOT_BUILD_DATE}`",
+        f"• **Status:** `Online & Operational`",
+        f"• **Latency:** `{latency} ms`",
+        f"• **AI Model:** `{GEMINI_MODEL}`",
+        f"• **Community Category ID:** `{COMMUNITY_CATEGORY_ID}`",
+        f"• **Lobby Channel ID:** `{LOBBY_CHANNEL_ID}`"
+    ]
+    embed = discord.Embed(
+        title="🤖 Exilium Support Bot Version Info",
+        description="\n".join(desc_lines),
+        color=0x2ECC71
+    )
+    embed.set_footer(text="Exilium Support Management • Bot Engine")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
 @bot.tree.command(name="update-bot", description="سحب آخر تحديثات الكود من GitHub وإعادة تشغيل البوت تلقائياً (للإدارة فقط)")
 async def update_bot_command(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
@@ -1970,16 +2011,17 @@ async def update_bot_command(interaction: discord.Interaction):
     load_knowledge_base()
 
     embed = discord.Embed(
-        title="🔄 Exilium Bot Auto-Updater",
+        title=f"🔄 Exilium Bot Auto-Updater (v{BOT_VERSION})",
         description=(
-            f"**طريقة التحديث:** `{used_method}`\n"
-            f"**النتيجة:**\n```{update_summary[:800]}```\n\n"
-            "🚀 **جاري إعادة تشغيل البوت بالنسخة الجديدة تلقائياً الآن...**\n"
-            "سيعود البوت للعمل خلال ثانية واحدة."
+            f"• **الإصدار الجديد:** `v{BOT_VERSION} (Build: {BOT_BUILD_DATE})`\n"
+            f"• **طريقة التحديث:** `{used_method}`\n"
+            f"• **النتيجة:**\n```{update_summary[:700]}```\n\n"
+            f"🚀 **جاري إعادة تشغيل البوت بالنسخة v{BOT_VERSION} الآن...**\n"
+            f"سيعود البوت بحالة الديسكورد: `Exilium SRO | v{BOT_VERSION}`"
         ),
         color=0x2ECC71
     )
-    embed.set_footer(text=f"طلب بواسطة: {interaction.user.display_name}")
+    embed.set_footer(text=f"طلب بواسطة: {interaction.user.display_name} • Version: v{BOT_VERSION}")
     await interaction.followup.send(embed=embed, ephemeral=True)
 
     logger.info(f"Auto-update successful via {used_method} by {interaction.user}. Restarting process...")
