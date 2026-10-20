@@ -1682,8 +1682,8 @@ async def on_message(message: discord.Message):
 # -------------------------------------------------------------
 # Slash Commands
 # -------------------------------------------------------------
-@bot.tree.command(name="ask", description="اسأل مساعد Exilium الذكي عن أي شيء يخص السيرفر أو حلول المشاكل")
-@app_commands.describe(question="سؤالك أو المشكلة التي تواجهك")
+@bot.tree.command(name="ask", description="Ask Exilium AI Assistant any question about gameplay, rates, or error solutions")
+@app_commands.describe(question="Your question or technical issue regarding Exilium")
 async def ask_slash(interaction: discord.Interaction, question: str):
     if not gemini_client:
         await interaction.response.send_message("❌ مفتاح الذكاء الاصطناعي غير مفعل حالياً.", ephemeral=True)
@@ -1704,7 +1704,7 @@ async def ask_slash(interaction: discord.Interaction, question: str):
         logger.error(f"Error in /ask command: {e}")
         await interaction.followup.send("⚠️ تعذر معالجة الطلب حالياً، يرجى المحاولة لاحقاً.")
 
-@bot.tree.command(name="ticket-panel", description="إرسال لوحة فتح تذاكر الدعم الفني في هذه القناة (للإدارة فقط)")
+@bot.tree.command(name="ticket-panel", description="Send the official Support Ticket panel in this channel (Admin Only)")
 @app_commands.checks.has_permissions(administrator=True)
 async def ticket_panel_command(interaction: discord.Interaction):
     embed = discord.Embed(
@@ -1724,13 +1724,13 @@ async def ticket_panel_command(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed, view=view)
     await interaction.response.send_message("✅ تم إرسال لوحة التذاكر بنجاح!", ephemeral=True)
 
-@bot.tree.command(name="reload-kb", description="إعادة تحميل قاعدة معرفة Exilium دون إعادة تشغيل البوت (للإدارة)")
+@bot.tree.command(name="reload-kb", description="Reload Exilium Knowledge Base without restarting the bot (Admin Only)")
 @app_commands.checks.has_permissions(administrator=True)
 async def reload_kb_command(interaction: discord.Interaction):
     load_knowledge_base()
     await interaction.response.send_message("✅ تم إعادة تحميل ملف `knowledge_base.json` بنجاح!", ephemeral=True)
 
-@bot.tree.command(name="report", description="عرض تقرير إحصائيات الذكاء الاصطناعي والتذاكر (👑 EXILIUM TEAM)")
+@bot.tree.command(name="report", description="Display AI statistics and ticket analytics report (👑 EXILIUM TEAM)")
 async def report_command(interaction: discord.Interaction):
     if not is_exilium_team_member(interaction.user):
         await interaction.response.send_message("❌ هذا الأمر مخصص لأعضاء 👑 EXILIUM TEAM فقط.", ephemeral=True)
@@ -1739,8 +1739,8 @@ async def report_command(interaction: discord.Interaction):
     embed = generate_analytics_embed()
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="daily-report", description="إرسال تقرير التذاكر اليومي في الخاص لـ [GM]STAM أو في القناة")
-@app_commands.describe(send_dm="إرسال التقرير في الخاص لـ [GM]STAM (نعم/لا)")
+@bot.tree.command(name="daily-report", description="Send the daily executive tickets brief via DM to [GM]STAM or in channel")
+@app_commands.describe(send_dm="Deliver daily brief directly to [GM]STAM via DM (True/False)")
 async def daily_report_command(interaction: discord.Interaction, send_dm: bool = True):
     if not is_exilium_team_member(interaction.user):
         await interaction.response.send_message("❌ هذا الأمر مخصص لـ 👑 EXILIUM TEAM فقط.", ephemeral=True)
@@ -1755,7 +1755,7 @@ async def daily_report_command(interaction: discord.Interaction, send_dm: bool =
     else:
         await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="transcript", description="استخراج سجل محادثة التيكت الحالي كملف نصي (للإدارة)")
+@bot.tree.command(name="transcript", description="Export current ticket conversation history as a text file (Staff Only)")
 async def transcript_command(interaction: discord.Interaction):
     if not is_exilium_team_member(interaction.user) and not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ هذا الأمر متاح للإدارة فقط.", ephemeral=True)
@@ -1785,7 +1785,7 @@ async def transcript_command(interaction: discord.Interaction):
         logger.error(f"Error generating transcript: {e}")
         await interaction.followup.send(f"⚠️ فشل استخراج السجل: {e}", ephemeral=True)
 
-@bot.tree.command(name="pause-bot", description="إيقاف ردود الذكاء الاصطناعي في هذا التيكت (للإدارة)")
+@bot.tree.command(name="pause-bot", description="Pause AI responses in this ticket channel (Staff Only)")
 async def pause_bot_command(interaction: discord.Interaction):
     if not is_staff_member(interaction.user):
         await interaction.response.send_message("❌ هذا الأمر مخصص للستاف فقط.", ephemeral=True)
@@ -1793,7 +1793,7 @@ async def pause_bot_command(interaction: discord.Interaction):
     ticket_staff_taken_over[interaction.channel_id] = True
     await interaction.response.send_message("⏸️ تم إيقاف ردود الذكاء الاصطناعي في هذا التيكت. يمكنك التحدث مع اللاعب بحرية.", ephemeral=True)
 
-@bot.tree.command(name="resume-bot", description="إعادة تفعيل ردود الذكاء الاصطناعي في هذا التيكت (للإدارة)")
+@bot.tree.command(name="resume-bot", description="Resume AI responses in this ticket channel (Staff Only)")
 async def resume_bot_command(interaction: discord.Interaction):
     if not is_staff_member(interaction.user):
         await interaction.response.send_message("❌ هذا الأمر مخصص للستاف فقط.", ephemeral=True)
@@ -1802,8 +1802,8 @@ async def resume_bot_command(interaction: discord.Interaction):
     await interaction.response.send_message("▶️ تم إعادة تفعيل ردود الذكاء الاصطناعي في هذا التيكت بنجاح.", ephemeral=True)
 
 # Item 17: Manual Give-Starter Command
-@bot.tree.command(name="give-starter", description="فتح بطاقة اعتماد باقة البداية لشخصية معينة يدوياً (لـ EXILIUM TEAM)")
-@app_commands.describe(ign="اسم شخصية اللاعب داخل اللعبة (IGN)")
+@bot.tree.command(name="give-starter", description="Open starter package dispatch menu for a specific character (EXILIUM TEAM)")
+@app_commands.describe(ign="Player exact In-Game Name (IGN)")
 async def give_starter_command(interaction: discord.Interaction, ign: str):
     if not is_exilium_team_member(interaction.user):
         await interaction.response.send_message("❌ هذا الأمر مخصص لأعضاء 👑 EXILIUM TEAM و [GM]STAM فقط.", ephemeral=True)
@@ -1837,11 +1837,11 @@ async def give_starter_command(interaction: discord.Interaction, ign: str):
     await interaction.response.send_message(embed=embed, view=approval_view)
 
 # Item 18: Maintenance Mode Command
-@bot.tree.command(name="maintenance", description="تفعيل أو إلغاء وضع الصيانة في السيرفر وتنبيه اللاعبين تلقائياً (للإدارة)")
+@bot.tree.command(name="maintenance", description="Toggle server maintenance mode and notify players automatically (Admin Only)")
 @app_commands.describe(
-    status="حالة الصيانة (on للتفعيل / off للإلغاء)",
-    reason="سبب الصيانة والوقت المتوقع للانتهاء",
-    duration_minutes="المدة المتوقعة بالدقائق (اختياري)"
+    status="Maintenance status (on to activate / off to deactivate)",
+    reason="Reason for maintenance and estimated completion time",
+    duration_minutes="Estimated duration in minutes (optional)"
 )
 @app_commands.choices(status=[
     app_commands.Choice(name="تفعيل وضع الصيانة (ON)", value="on"),
@@ -1889,10 +1889,10 @@ async def maintenance_command(interaction: discord.Interaction, status: app_comm
         await interaction.response.send_message(embed=embed)
 
 # Item 20: Staff Multi-Language Reply Command
-@bot.tree.command(name="staff-reply", description="ترجمة رد الستاف فورياً إلى لغة تيكت اللاعب وإرساله كرسالة رسمية (للإدارة)")
+@bot.tree.command(name="staff-reply", description="Translate staff reply into player ticket language and send as official support")
 @app_commands.describe(
-    text="نص ردك بالعربية أو الإنجليزية ليتم ترجمته تلقائياً للاعب",
-    close_after="إرفاق زر إغلاق التيكت الفوري أسفل الرسالة (نعم/لا)"
+    text="Your reply message to be translated automatically for the player",
+    close_after="Attach a 1-click Close Ticket button below the message (True/False)"
 )
 async def staff_reply_command(interaction: discord.Interaction, text: str, close_after: bool = False):
     if not is_staff_member(interaction.user):
@@ -1981,7 +1981,7 @@ def download_github_update_sync(repo_name: str = "mrshazya-del/exilium-bot", bra
 
     return f"Updated {len(updated_files)} files: " + ", ".join(updated_files[:6])
 
-@bot.tree.command(name="kill-duplicates", description="إنهاء أي نسخ مكررة من البوت تعمل في خلفية السيرفر (للإدارة)")
+@bot.tree.command(name="kill-duplicates", description="Terminate any ghost/duplicate bot processes running in the background (Admin Only)")
 async def kill_duplicates_command(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     if not is_exilium_team_member(interaction.user):
@@ -1994,7 +1994,7 @@ async def kill_duplicates_command(interaction: discord.Interaction):
     else:
         await interaction.followup.send("✅ لا توجد أي نسخ مكررة تعمل بالخلفية! البوت يعمل بنسخة واحدة سليمة.", ephemeral=True)
 
-@bot.tree.command(name="version", description="عرض رقم إصدار البوت الحالي وحالة النظام (Bot Version & Info)")
+@bot.tree.command(name="version", description="Display current bot version, system status, and latency info")
 async def version_command(interaction: discord.Interaction):
     latency = round(bot.latency * 1000, 2) if bot.is_ready() else 0
     desc_lines = [
@@ -2014,7 +2014,7 @@ async def version_command(interaction: discord.Interaction):
     embed.set_footer(text="Exilium Support Management • Bot Engine")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="update-bot", description="سحب آخر تحديثات الكود من GitHub وإعادة تشغيل البوت تلقائياً (للإدارة فقط)")
+@bot.tree.command(name="update-bot", description="Pull latest updates from GitHub and restart the bot automatically (Admin Only)")
 async def update_bot_command(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
@@ -2102,5 +2102,8 @@ if __name__ == "__main__":
         print("="*60 + "\n")
         exit(1)
 
-    print("🚀 جاري تشغيل بوت Exilium AI Assistant...")
+    # Automatically purge any ghost/duplicate bot processes on startup
+    kill_other_bot_instances()
+
+    print(f"🚀 جاري تشغيل بوت Exilium AI Assistant (v{BOT_VERSION})...")
     bot.run(DISCORD_BOT_TOKEN)
