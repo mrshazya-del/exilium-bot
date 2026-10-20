@@ -50,6 +50,7 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
 # Role & User IDs
 ADMIN_ROLE_ID = os.getenv("ADMIN_ROLE_ID", "").strip()
 ADMIN_USER_ID = os.getenv("ADMIN_USER_ID", "382690116357062656").strip()
+ASTRO_USER_ID = os.getenv("ASTRO_USER_ID", "987384782604353537").strip()
 SUPPORT_ROLE_ID = os.getenv("SUPPORT_ROLE_ID", "1287045626860802162").strip()
 EXILIUM_TEAM_ROLE_ID = os.getenv("EXILIUM_TEAM_ROLE_ID", "1203345505841582080").strip()
 HEAD_SUPPORTER_ROLE_ID = os.getenv("HEAD_SUPPORTER_ROLE_ID", "1287045626860802162").strip()
@@ -62,8 +63,8 @@ raw_prefixes = os.getenv("TICKET_CHANNEL_PREFIXES", "ticket-,support-,ticket_")
 TICKET_CHANNEL_PREFIXES = [p.strip().lower() for p in raw_prefixes.split(",") if p.strip()]
 TICKET_CATEGORY_ID = os.getenv("TICKET_CATEGORY_ID", "").strip()
 
-BOT_VERSION = "2.2.0"
-BOT_BUILD_DATE = "2026-10-20"
+BOT_VERSION = "2.3.0"
+BOT_BUILD_DATE = "2026-10-21"
 
 # Community / Lobby Channels & Category IDs
 COMMUNITY_CATEGORY_ID = os.getenv("COMMUNITY_CATEGORY_ID", "1244300178819911747").strip()
@@ -79,8 +80,15 @@ COMMUNITY_CHANNELS = [c.strip().lower() for c in raw_community.split(",") if c.s
 # Strictly NEVER mention 👑 EXILIUM TEAM 👑 role in tickets!
 # Ticket staff mentions are ONLY STAM, Head Supporter, and Community Supporter.
 # -------------------------------------------------------------
-def get_staff_ticket_mentions() -> str:
-    """Strictly mention STAM, Head Supporter, and Community Supporter. NEVER mention Exilium Team role."""
+def get_staff_ticket_mentions(is_technical: bool = False) -> str:
+    """Smart routing:
+    If technical/DB/bug: strictly mention STAM and Astro.
+    If general: mention STAM and Supporters.
+    NEVER mention 👑 EXILIUM TEAM 👑 role in tickets!
+    """
+    if is_technical:
+        return f"<@{ADMIN_USER_ID}> <@{ASTRO_USER_ID}>"
+    
     mentions = [f"<@{ADMIN_USER_ID}>"]
     if HEAD_SUPPORTER_ROLE_ID:
         mentions.append(f"<@&{HEAD_SUPPORTER_ROLE_ID}>")
@@ -1314,7 +1322,13 @@ async def process_ticket_ai_reply(
 
         history.append({"role": "model", "text": clean_text})
 
-        if is_ticket_bot_embed and target_mention:
+        if needs_escalation:
+            player_tag = target_mention if (is_ticket_bot_embed and target_mention) else author.mention
+            clean_text = (
+                f"Hello {player_tag}! 👋\n"
+                f"Thank you for reporting this. I have notified our team for verification. Please allow us a moment to check it for you!"
+            )
+        elif is_ticket_bot_embed and target_mention:
             clean_text = f"👋 {target_mention}\n\n{clean_text}"
 
         lower_ai = clean_text.lower()
@@ -1435,33 +1449,45 @@ async def process_ticket_ai_reply(
             resolved_embed.set_footer(text="Exilium Support Management • Ready for Closure")
             await channel.send(embed=resolved_embed)
 
-        # Item 16: Smart English-Only Summary on Escalation
+        # Item 16: Smart English-Only Ultra-Compact Summary on Escalation
         if needs_escalation:
             if channel_id not in ticket_escalated:
                 ticket_escalated[channel_id] = True
-                staff_pings = get_staff_ticket_mentions()
+                
+                # Check if issue is technical (DB, SQL, bugs, pet speed, damage, crashes)
+                conv_lower = conversation_text.lower()
+                tech_keywords = [
+                    "db", "database", "sql", "refobj", "refitem", "bug", "glitch",
+                    "speed", "pet", "skill", "damage", "crash", "error", "client", "freeze",
+                    "disconnect", "shard", "stat", "attack", "alchemy", "patch"
+                ]
+                is_tech = any(re.search(r'\b' + re.escape(kw) + r'\b', conv_lower) for kw in tech_keywords)
+                staff_pings = get_staff_ticket_mentions(is_technical=is_tech)
 
                 summary_prompt = (
-                    f"Summarize this ticket concisely in 2 short bullet points IN ENGLISH ONLY for staff:\n"
-                    f"- What is the player's core problem?\n"
-                    f"- Mention what image/error was found if an image was uploaded.\n"
-                    f"- State reason for escalation.\n"
+                    "Summarize this ticket in EXACTLY one concise English sentence for staff diagnostics. "
+                    "State ONLY what the core problem is. Do NOT mention images or missing files. Just the core issue:\n"
                     f"{conversation_text}"
                 )
                 try:
                     summary_text = await generate_ai_text_async(summary_prompt)
                     clean_summary = summary_text.replace("[ESCALATE_TO_ADMIN]", "").strip()
                 except Exception:
-                    clean_summary = f"Player requires staff intervention regarding: {user_query[:100]}"
+                    clean_summary = f"Player requires staff assistance regarding reported issue."
 
-                summary_card = (
-                    f"🔔 {staff_pings}\n\n"
-                    f"📋 **Staff Ticket Summary:**\n"
-                    f"• **Player:** `{author.display_name}` (IGN: `{current_ign}`)\n"
-                    f"• **Core Issue:** {clean_summary}\n"
-                    f"• **Escalation Reason:** Human staff assistance required"
+                route_label = "🔧 Technical / DB & Files (STAM & Astro)" if is_tech else "💬 General Community Support"
+
+                summary_embed = discord.Embed(
+                    title="📋 Staff Ticket Summary",
+                    description=(
+                        f"• **Player:** {author.mention} (IGN: `{current_ign or 'Unknown'}`)\n"
+                        f"• **Core Issue:** {clean_summary}\n"
+                        f"• **Route:** `{route_label}`"
+                    ),
+                    color=0xE67E22 if is_tech else 0x5865F2
                 )
-                await channel.send(summary_card)
+                summary_embed.set_footer(text="Exilium Support Management • Internal Diagnostic")
+                await channel.send(content=f"🔔 {staff_pings}", embed=summary_embed)
 
     except Exception as e:
         logger.error(f"Error handling AI response for ticket {channel_id}: {e}")
