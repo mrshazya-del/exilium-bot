@@ -1,0 +1,19 @@
+# Environment variables & secrets
+.env
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+
+# System logs
+.system_generated/
+
+# Local runtime data & ticket states
+daily_tickets.json
+inactivity_tracker.json
+analytics.json
+verify_project.py
+claimed_starters.json
+ticket_analytics.json

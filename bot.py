@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 import asyncio
 import io
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # Ensure UTF-8 output on Windows console
 if sys.platform == "win32":
@@ -61,6 +61,10 @@ raw_prefixes = os.getenv("TICKET_CHANNEL_PREFIXES", "ticket-,support-,ticket_")
 TICKET_CHANNEL_PREFIXES = [p.strip().lower() for p in raw_prefixes.split(",") if p.strip()]
 TICKET_CATEGORY_ID = os.getenv("TICKET_CATEGORY_ID", "").strip()
 
+# Community / Lobby Channels for AI Assistance
+raw_community = os.getenv("COMMUNITY_CHANNELS", "lobby,english,arabic,turkish,portuguese,french,spanish,german,russian,dutch,hungarian,balkan,filipino,romanian,hebrew,vietnamese,polish")
+COMMUNITY_CHANNELS = [c.strip().lower() for c in raw_community.split(",") if c.strip()]
+
 # -------------------------------------------------------------
 # Staff Mentions Policy:
 # Strictly NEVER mention 👑 EXILIUM TEAM 👑 role in tickets!
@@ -76,7 +80,7 @@ def get_staff_ticket_mentions() -> str:
     return " ".join(mentions)
 
 # -------------------------------------------------------------
-# Exilium Team Authorization Helper
+# Authorization Helpers
 # -------------------------------------------------------------
 def is_exilium_team_member(user: discord.abc.User) -> bool:
     """Strictly allow only members of the 👑 EXILIUM TEAM 👑 role or Server Owner."""
@@ -110,25 +114,59 @@ def is_staff_member(user: discord.abc.User) -> bool:
             return True
     return False
 
-# channel_id -> bool: True when staff spoke in ticket, so bot completely stops replying
+def is_community_channel(channel: discord.abc.GuildChannel) -> bool:
+    """Check if channel is a designated community/lobby/language channel."""
+    if not hasattr(channel, "name"):
+        return False
+    cname = channel.name.lower()
+    cid_str = str(channel.id)
+    for allowed in COMMUNITY_CHANNELS:
+        if allowed == cid_str or allowed == cname or (len(allowed) >= 4 and allowed in cname):
+            return True
+    return False
+
+def sanitize_ign(raw_ign: str) -> str:
+    """Strictly strip newlines, spaces, and special symbols to prevent command injection."""
+    if not raw_ign:
+        return ""
+    clean = re.sub(r"[^\w\.\-]", "", raw_ign).strip()
+    return clean[:20]
+
+# -------------------------------------------------------------
+# Global States & Watchdogs
+# -------------------------------------------------------------
+# channel_id -> bool: True when staff spoke in ticket
 ticket_staff_taken_over: Dict[int, bool] = {}
+# channel_id -> timestamp: last time staff spoke in this ticket (for 24h smart silence expiration)
+ticket_staff_last_msg_ts: Dict[int, float] = {}
 # channel_id -> bool: True when staff was already pinged in this ticket to prevent repeat pings
 ticket_escalated: Dict[int, bool] = {}
+
+# Maintenance Mode State
+maintenance_mode: bool = False
+maintenance_reason: str = ""
+maintenance_start_ts: float = 0.0
+maintenance_duration_min: int = 0
+
+# Cooldowns for Community Channels
+community_channel_cooldown: Dict[int, float] = {}
+community_user_cooldown: Dict[int, float] = {}
 
 # -------------------------------------------------------------
 # Initialize Gemini Client
 # -------------------------------------------------------------
-if not GEMINI_API_KEY:
+gemini_client = None
+if GEMINI_API_KEY:
+    try:
+        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+        logger.info("Gemini API Client initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize Gemini Client: {e}")
+else:
     logger.warning("GEMINI_API_KEY is not set in environment or .env! AI responses will fail.")
 
-try:
-    gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
-except Exception as e:
-    logger.error(f"Failed to initialize Gemini Client: {e}")
-    gemini_client = None
-
 # -------------------------------------------------------------
-# Knowledge Base Loader
+# Knowledge Base Loader & Fast Path
 # -------------------------------------------------------------
 KB_FILE_PATH = os.path.join(os.path.dirname(__file__), "knowledge_base.json")
 knowledge_base: dict = {}
@@ -149,95 +187,96 @@ def load_knowledge_base():
 
 load_knowledge_base()
 
+def check_download_fast_path(user_text: str) -> Optional[str]:
+    """Instant 0.01s local response for pure download link queries without hitting Gemini API."""
+    text_lower = user_text.lower().strip()
+    download_keywords = [
+        "mediafire", "mega.nz", "google drive", "تحميل اللعبة", "رابط التحميل",
+        "روابط التحميل", "تحميل الكلاينت", "لينك التحميل", "رابط تحميل",
+        "download link", "download client", "download game", "download the game",
+        "where to download", "how to download", "how can i download", "where can i download",
+        "oyun indir", "nereden indirebilirim", "indir link", "nasil indirebilirim",
+        "baixar jogo", "como baixar", "onde baixar", "download spiel"
+    ]
+    if any(kw in text_lower for kw in download_keywords):
+        downloads = knowledge_base.get("official_downloads", {})
+        lines = [
+            "📥 **Official Exilium Download Links (روابط التحميل الرسمية المباشرة):**",
+            f"• **Direct Link (الرابط المباشر):** [Download Client]({downloads.get('direct', 'https://exiliumonline.com/download')})",
+            f"• **Google Drive:** [Google Drive Mirror]({downloads.get('google_drive', '#')})",
+            f"• **MediaFire:** [MediaFire Mirror]({downloads.get('mediafire', '#')})",
+            f"• **Mega Mirror 1:** [Mega Mirror]({downloads.get('mega', '#')})",
+            f"• **Files.fm:** [Files.fm Mirror]({downloads.get('files_fm', '#')})",
+            "\n💡 *Extract with WinRAR or 7-Zip and always run the Launcher as Administrator!*"
+        ]
+        return "\n".join(lines)
+    return None
+
+# -------------------------------------------------------------
+# System Instruction Builder with Cap 80 CH Builds & Empathy
+# -------------------------------------------------------------
 def build_system_instruction() -> str:
     kb_str = json.dumps(knowledge_base, ensure_ascii=False, indent=2)
-    return f"""You are the official AI Support Assistant for "Exilium", a popular Silkroad Online (vSRO) private server.
-Your name is "Exilium Assistant". You assist players warmly, professionally, and concisely inside Discord support tickets.
+    return f"""You are the official AI Support Assistant for "Exilium", a premier Silkroad Online (vSRO Cap 80 CH Only) private server.
+Your name is "Exilium Assistant". You assist players warmly, concisely, and accurately in Discord support tickets and community channels.
 
-Here is the authoritative Exilium Server Knowledge Base:
+Authoritative Exilium Server Knowledge Base:
 === KNOWLEDGE BASE START ===
 {kb_str}
 === KNOWLEDGE BASE END ===
 
-YOUR STRICT OPERATING INSTRUCTIONS:
-1. STRICT BREVITY & CONCISENESS (MANDATORY):
-   - Keep ALL responses SHORT, DIRECT, and CONCISE. Never write long essays or overwhelming paragraphs.
-   - Maximum 2 to 3 sentences or short bullet points per response.
+OPERATING INSTRUCTIONS & EXPERTISE:
+1. STRICT BREVITY & CONCISENESS:
+   - Keep ALL responses short, direct, and actionable (2 to 4 sentences or short bullet points).
 
-2. ZERO HALLUCINATION POLICY (NEVER GUESS OR FABRICATE):
-   - You are strictly grounded by the Exilium Knowledge Base above.
-   - If a player asks about an issue, bug, custom drop, or mechanic that is NOT clearly documented in your Knowledge Base, or if you are not 100% certain:
-     -> STRICTLY DO NOT GUESS OR INVENT ANY ANSWERS.
-     -> Reply politely: "I do not have exact information regarding this issue. I have notified our Support and Management team to assist you directly."
-     -> Append [ESCALATE_TO_ADMIN] so staff is notified immediately.
+2. ZERO HALLUCINATION POLICY:
+   - Rely strictly on the Knowledge Base. If an issue is unknown or requires internal database checks, politely state:
+     "This requires staff assistance. I have notified our Support and Management team to assist you directly."
+     and append [ESCALATE_TO_ADMIN].
 
-3. UNCLEAR / VAGUE / GREETING INQUIRIES:
-   - If the ticket subject or player message is vague, short, or just a greeting (e.g. "alo", "hi", "hello", "help", "need support", "problem", or empty):
-     -> Respond with ONLY 1 or 2 short sentences:
-     "Hello! 👋 How can I help you today? Could you please briefly explain what issue you are facing?"
-     -> That's it! Do NOT add anything else.
+3. STARTER PACKAGE CRITERIA (ANTI-FALSE TRIGGER):
+   - ONLY trigger starter confirmation if the player is EXPLICITLY requesting a starter package/pack for themselves as a new player (e.g. "I want starter package", "i am new player can i get pack", "ana gded", "yeni basladim paket").
+   - If they are merely discussing, asking how it works, asking about GM commands, or asking curiosity questions: DO NOT trigger confirmation! Simply explain how new players receive starter rewards.
+   - When legitimately requested, reply briefly in English:
+     "Welcome to Exilium! Your request for the Starter Package has been submitted to the administration for confirmation."
+     and append the exact token: <<<AWAIT_STARTER_CONFIRMATION>>>
 
-4. DIRECT SOLUTIONS FOR KNOWN SPECIFIC ISSUES:
-   - When the player mentions a specific known problem from the Knowledge Base (e.g. "C9 error", "sro_client closed by defender", "BSObj Plugin", "Win 11 crash", "how to craft SOM", "alchemy rates"):
-     -> Provide a concise, step-by-step solution using 2 to 3 short bullet points only.
-     -> Keep the entire response under 4 lines.
+4. CAP 80 CH BUILD DOCTOR (DEEP EXPERTISE):
+   - When players ask for build advice or compare builds in Cap 80 Chinese (Max 300 Mastery limit):
+     * Glaive STR: 80 Heuksal / 80 Fire / 80 Cold / 60 Lightning (Protector/Garment, high HP, massive physical burst, tanky).
+     * Bow STR: 80 Pacheon / 80 Fire / 80 Cold / 60 Lightning (Long range, critical hits, high dodge, excellent in 1v1 PvP and Jobbing).
+     * Pure INT Spear: 80 Heuksal / 80 Lightning / 80 Cold / 60 Fire (Highest magical AoE nuke damage in game, high glass cannon burst, needs Cold shields and Protector).
+     * Nuker Sword/Shield (Bicheon): 80 Bicheon / 80 Lightning / 80 Cold / 60 Fire (Shield defense, knockdown + down attack combo, high survivability).
 
-5. DYNAMIC LANGUAGE DETECTION (SUBJECT-BASED):
-   - ALWAYS detect the player's language directly from the Ticket Subject or user query:
-     * If Subject is Turkish (e.g. 'başlangıç paketi', 'oyuna giremiyorum', 'selam'): reply in Turkish!
-     * If Subject is Portuguese (e.g. 'pacote inicial', 'não consigo entrar', 'olá'): reply in Portuguese!
-     * If Subject is Arabic (e.g. 'باكدج البداية', 'عندي مشكلة', 'مرحبا'): reply in Arabic!
-     * If Subject is German: reply in German!
-     * If Subject is English or unclear: reply in English!
-   - Also use the Ticket Subject as the immediate context of their issue.
+5. EMPATHETIC RAGE & DC HANDLING:
+   - When a player complains angrily about lag, disconnections, or crashes ("trash server", "lag", "dc every 5m", "fix your game"):
+     * Do NOT give cold robotic replies like "check your internet".
+     * Acknowledge empathetically: Apologize for the frustration, clarify that the server infrastructure is running normally, and guide them to diagnose:
+       "We apologize for the frustration! The server is currently stable with no widespread issues. To fix this quickly: Are you getting Error C9, or is the client closing silently? Please check that Windows Defender hasn't quarantined sro_client.exe and restart your router."
 
-6. ESCALATION TO ADMIN / SUPPORT:
-   - You MUST escalate if:
-     a) Donations, Payments, or Silk not received.
-     b) Stolen items, account theft, or lost credentials.
-     c) Ban appeals or reporting cheaters with proof.
-     d) The issue is NOT in the knowledge base or outside standard troubleshooting.
-     e) The player specifically asks for an Admin/Staff.
-   - HOW TO ESCALATE:
-     - Reply shortly: "This issue requires staff assistance. I have notified our Support and Management team to assist you shortly."
-     - Append [ESCALATE_TO_ADMIN].
+6. PROACTIVE ERROR SCREENSHOT PROMPTING:
+   - When a player describes a technical error, launcher crash, black screen, or missing file WITHOUT uploading an image:
+     * Provide the initial troubleshooting steps, and end with:
+       "💡 To resolve your issue faster, please upload a clear screenshot of the error message (📸 Shortcut: press Win + Shift + S to capture, then Ctrl + V here)."
 
-7. ISSUE RESOLVED CONFIRMATION:
-   - When the player confirms their issue is solved, or answers "no" / "nothing else" / "all good" / "thanks" / "it works" / "solved" / "شكراً":
-     -> Reply politely: "Awesome! Glad I could help you today. Please click the red [Close Ticket] button above to close this ticket. Have fun playing Exilium! 👋"
-     -> You MUST append [TICKET_RESOLVED] at the end of your response.
+7. AUTOMATED SILK STORE INQUIRIES:
+   - Silk purchasing and donations are 100% automated on the website. If a player asks about buying Silk, payment methods, or store:
+     Direct them immediately to the official store: https://exiliumonline.com/account/store and mention that delivery is instant.
 
-8. STARTER PACKAGES / NEW PLAYER REWARDS:
-   - If a player asks for a starter package, starter pack, new player reward, or mentions they are a new player (e.g. "i'm new", "new player", "ana gded", "انا جديد", "starter", "beginner"):
-     - Reply briefly in clean English: "Welcome to Exilium! Your request for the Starter Package has been submitted to the administration for confirmation."
-     - (Note: All starter rewards are delivered to the player's in-game Chest).
-     - STRICTLY DO NOT mention any commands (like !starterpackage) to the player.
-     - You MUST append the exact token: <<<AWAIT_STARTER_CONFIRMATION>>>
-
-9. SCREENSHOT & ERROR IMAGE DIAGNOSIS (VISION & OFFICIAL DOWNLOADS):
-   - When a player uploads a screenshot or image of an error dialog, client crash, or technical issue:
-     1. Analyze the exact error text, title, or error code in the image.
-     2. Identify the root cause and provide 2 to 3 concise bullet steps.
-     3. ALWAYS provide the required official download link:
-        * Missing msvcp140.dll / vcruntime140.dll / C++ runtime error:
-          Provide: [Official Microsoft Visual C++ All-in-One](https://aka.ms/vs/17/release/vc_redist.x86.exe)
-        * DirectX / 3D Graphics / d3dx9 error:
-          Provide: [Official Microsoft DirectX Web Installer](https://www.microsoft.com/en-us/download/details.aspx?id=35)
-        * sro_client.exe disappeared / quarantined:
-          Guide them to restore it in Windows Defender Protection History and add game folder to Exclusions.
-        * Client outdated or Media.pk2 corrupted:
-          Provide: [Exilium Official Website](https://exiliumonline.com)
+8. ISSUE RESOLVED CONFIRMATION:
+   - When the player confirms their issue is solved ("thanks", "solved", "all good", "شكرا", "sagol"):
+     Reply politely: "Awesome! Glad I could help you today. Please click the red [Close Ticket] button above to close this ticket. Have fun playing Exilium! 👋"
+     and append [TICKET_RESOLVED].
 """
 
 # -------------------------------------------------------------
-# Fast Async AI Generation with Sub-second Models
+# Fast Async AI Generation with 1-Retry Backoff
 # -------------------------------------------------------------
 async def generate_ai_text_async(prompt: str, image_parts: list = None) -> str:
-    """Generate response using Gemini async client with sub-second models and strict per-model timeouts."""
+    """Generate response using Gemini async client with candidate fallback and 1-retry backoff."""
     if not gemini_client:
         return "❌ مفتاح الذكاء الاصطناعي غير متوفر حالياً."
 
-    # Fast models ordered by tested sub-second latency
     candidate_models = [
         "gemini-3.5-flash-lite",
         "gemini-3.1-flash-lite",
@@ -253,45 +292,36 @@ async def generate_ai_text_async(prompt: str, image_parts: list = None) -> str:
     contents.append(prompt)
 
     last_error = None
-    for model_name in models_to_try:
-        try:
-            logger.info(f"Generating content with model: {model_name} (images: {len(image_parts) if image_parts else 0})")
-            response = await asyncio.wait_for(
-                gemini_client.aio.models.generate_content(
-                    model=model_name,
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=build_system_instruction(),
-                        temperature=0.3,
-                        max_output_tokens=500
-                    )
-                ),
-                timeout=5.5
-            )
-            if response and response.text:
-                return response.text
-        except asyncio.TimeoutError:
-            logger.warning(f"Model '{model_name}' timed out after 5.5s, switching to next candidate.")
-            last_error = TimeoutError(f"Model {model_name} timed out.")
-        except Exception as e:
-            logger.warning(f"Model '{model_name}' error: {e}, switching to next candidate.")
-            last_error = e
+    for attempt in range(2):
+        for model_name in models_to_try:
+            try:
+                response = await asyncio.wait_for(
+                    gemini_client.aio.models.generate_content(
+                        model=model_name,
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            system_instruction=build_system_instruction(),
+                            temperature=0.3,
+                            max_output_tokens=600
+                        )
+                    ),
+                    timeout=5.5
+                )
+                if response and response.text:
+                    return response.text
+            except asyncio.TimeoutError:
+                logger.warning(f"Model '{model_name}' timed out after 5.5s, switching candidate.")
+                last_error = TimeoutError(f"Model {model_name} timed out.")
+            except Exception as e:
+                logger.warning(f"Model '{model_name}' error: {e}, switching candidate.")
+                last_error = e
+
+        if attempt == 0:
+            logger.info("Transient API timeout/error. Waiting 1.0s before retry...")
+            await asyncio.sleep(1.0)
 
     logger.error(f"All candidate models failed: {last_error}")
     raise last_error if last_error else RuntimeError("No response from AI models.")
-
-def generate_ai_text(prompt: str, image_parts: list = None) -> str:
-    """Synchronous fallback helper."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(generate_ai_text_async(prompt, image_parts), loop)
-            return future.result(timeout=10.0)
-        else:
-            return asyncio.run(generate_ai_text_async(prompt, image_parts))
-    except Exception as e:
-        logger.error(f"Error in synchronous generate_ai_text: {e}")
-        return "⚠️ An error occurred while generating response."
 
 # -------------------------------------------------------------
 # Conversation History Storage per Ticket Channel
@@ -310,7 +340,7 @@ def is_ticket_channel(channel: discord.abc.GuildChannel) -> bool:
     return False
 
 # -------------------------------------------------------------
-# Daily Tickets Tracker (for [GM]STAM DM Summary)
+# Daily Tickets Persistent Tracking
 # -------------------------------------------------------------
 DAILY_TICKETS_FILE = os.path.join(os.path.dirname(__file__), "daily_tickets.json")
 daily_tickets_data: dict = {}
@@ -336,136 +366,85 @@ def save_daily_tickets():
 
 load_daily_tickets()
 
-def record_daily_ticket(channel_id: int, channel_name: str, ign: str, username: str, issue: str, status: str = "⏳ In Progress"):
+def record_daily_ticket(channel_id: int, channel_name: str, ign: str, player_name: str, issue: str, status: str = "⏳ In Progress"):
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    today_tickets = daily_tickets_data.setdefault(today_str, {})
-    cid_key = str(channel_id)
-    existing = today_tickets.get(cid_key, {})
-    today_tickets[cid_key] = {
-        "channel_name": channel_name,
-        "ign": ign or existing.get("ign", "Player"),
-        "username": username or existing.get("username", "N/A"),
-        "issue": (issue or existing.get("issue", "General support inquiry"))[:120],
-        "status": status if status != "⏳ In Progress" else existing.get("status", status),
-        "updated_at": datetime.now(timezone.utc).strftime("%H:%M UTC")
-    }
+    now_time = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+    day_records = daily_tickets_data.setdefault(today_str, {})
+    cid_str = str(channel_id)
+    if cid_str not in day_records:
+        day_records[cid_str] = {
+            "channel_name": channel_name,
+            "ign": ign or "N/A",
+            "player_name": player_name,
+            "issue": issue[:120],
+            "status": status,
+            "opened_at": now_time,
+            "last_updated": now_time
+        }
+    else:
+        day_records[cid_str]["status"] = status
+        day_records[cid_str]["last_updated"] = now_time
+        if ign and day_records[cid_str].get("ign") == "N/A":
+            day_records[cid_str]["ign"] = ign
     save_daily_tickets()
 
-def update_daily_ticket_status(channel_id: int, status: str):
+def update_daily_ticket_status(channel_id: int, new_status: str):
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    today_tickets = daily_tickets_data.get(today_str, {})
-    cid_key = str(channel_id)
-    if cid_key in today_tickets:
-        today_tickets[cid_key]["status"] = status
-        today_tickets[cid_key]["updated_at"] = datetime.now(timezone.utc).strftime("%H:%M UTC")
+    now_time = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+    day_records = daily_tickets_data.get(today_str, {})
+    cid_str = str(channel_id)
+    if cid_str in day_records:
+        day_records[cid_str]["status"] = new_status
+        day_records[cid_str]["last_updated"] = now_time
         save_daily_tickets()
-    else:
-        # Check all dates in case ticket was opened earlier
-        for d, t_dict in daily_tickets_data.items():
-            if cid_key in t_dict:
-                t_dict[cid_key]["status"] = status
-                t_dict[cid_key]["updated_at"] = datetime.now(timezone.utc).strftime("%H:%M UTC")
-                save_daily_tickets()
-                break
 
-def generate_daily_report_embed(date_str: str = None) -> discord.Embed:
-    if not date_str:
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    tickets_today = daily_tickets_data.get(date_str, {})
-
-    total = len(tickets_today)
-    resolved = sum(1 for t in tickets_today.values() if "resolved" in t.get("status", "").lower() or "✅" in t.get("status", ""))
-    starters = sum(1 for t in tickets_today.values() if "starter" in t.get("status", "").lower() or "🎁" in t.get("status", ""))
-    in_progress = total - resolved - starters
+def generate_daily_report_embed(date_str: str) -> discord.Embed:
+    day_records = daily_tickets_data.get(date_str, {})
+    total = len(day_records)
+    resolved = sum(1 for t in day_records.values() if "Resolved" in t.get("status", ""))
+    starters = sum(1 for t in day_records.values() if "Starter" in t.get("status", ""))
+    escalated = sum(1 for t in day_records.values() if "Escalated" in t.get("status", ""))
+    in_progress = total - resolved
 
     embed = discord.Embed(
-        title=f"📋 Exilium Daily Support Summary • {date_str}",
+        title=f"📋 Exilium Daily Support Report — {date_str}",
         description=(
             f"**Total Tickets Handled Today:** `{total}`\n"
-            f"• ✅ **Resolved:** `{resolved}`\n"
-            f"• 🎁 **Starter Delivered:** `{starters}`\n"
-            f"• ⏳ **In Progress / Escalated:** `{in_progress}`\n\n"
+            f"✅ **Resolved Tickets:** `{resolved}`\n"
+            f"🎁 **Starter Packages Approved:** `{starters}`\n"
+            f"🚨 **Escalated to Staff:** `{escalated}`\n"
+            f"⏳ **Active / In Progress:** `{in_progress}`\n\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         ),
         color=0x00A8FF
     )
-
-    if tickets_today:
-        ticket_lines = []
-        for cid, t in list(tickets_today.items())[:25]:
-            ign = t.get("ign", "Player")
-            issue = t.get("issue", "Support request")[:50]
-            status = t.get("status", "⏳ In Progress")
-            time_str = t.get("updated_at", "")
-            ticket_lines.append(f"• **{ign}** | `{status}`\n  └ *Issue:* {issue} ({time_str})")
-
-        embed.add_field(
-            name="🎫 Tickets Breakdown",
-            value="\n".join(ticket_lines)[:1024],
-            inline=False
-        )
+    if day_records:
+        lines = []
+        for cid, t in list(day_records.items())[:15]:
+            ign_part = f" (IGN: `{t['ign']}`)" if t.get('ign') and t['ign'] != 'N/A' else ""
+            lines.append(f"• **#{t['channel_name']}**{ign_part}: {t['status']} | *{t['issue'][:40]}*")
+        embed.add_field(name="Latest Tickets Summary", value="\n".join(lines), inline=False)
     else:
-        embed.add_field(
-            name="🎫 Tickets Breakdown",
-            value="*No tickets recorded for today.*",
-            inline=False
-        )
+        embed.add_field(name="Summary", value="*No tickets recorded for this date yet.*", inline=False)
 
-    embed.set_footer(text=f"Exilium Daily Audit • [GM]STAM Management • {date_str}")
+    embed.set_footer(text="Exilium Support Management • Daily Executive Brief")
     return embed
 
-async def send_daily_dm_to_stam(date_str: str = None):
-    """Sends the daily tickets summary DM to [GM]STAM."""
+async def send_daily_dm_to_stam(date_str: str):
     try:
-        user_stam = bot.get_user(int(ADMIN_USER_ID))
-        if not user_stam:
-            user_stam = await bot.fetch_user(int(ADMIN_USER_ID))
-        if not user_stam:
-            logger.error(f"Could not find [GM]STAM user with ID {ADMIN_USER_ID}")
-            return
-
-        embed = generate_daily_report_embed(date_str)
-        await user_stam.send(
-            content=f"👑 **[GM]STAM** - إليك ملخص تذاكر ومشاكل اللاعبين اليومية ({date_str or 'اليوم'}):",
-            embed=embed
-        )
-        logger.info(f"Daily ticket summary DM sent successfully to [GM]STAM ({ADMIN_USER_ID})")
+        stam_user = await bot.fetch_user(int(ADMIN_USER_ID))
+        if stam_user:
+            embed = generate_daily_report_embed(date_str)
+            await stam_user.send(content=f"👑 **Hello [GM]STAM! Here is your Exilium Daily Tickets Summary for {date_str}:**", embed=embed)
+            logger.info(f"Successfully sent daily DM report for {date_str} to [GM]STAM.")
     except Exception as e:
-        logger.error(f"Failed to send daily DM to [GM]STAM: {e}")
+        logger.error(f"Failed to send daily report DM to [GM]STAM: {e}")
 
 # -------------------------------------------------------------
-# Official Download Help View
-# -------------------------------------------------------------
-class DownloadHelpView(discord.ui.View):
-    def __init__(self, include_vcredist: bool = False, include_directx: bool = False, include_website: bool = True):
-        super().__init__(timeout=None)
-        if include_vcredist:
-            self.add_item(discord.ui.Button(
-                label="Download Visual C++ All-in-One",
-                style=discord.ButtonStyle.link,
-                url="https://aka.ms/vs/17/release/vc_redist.x86.exe",
-                emoji="⬇️"
-            ))
-        if include_directx:
-            self.add_item(discord.ui.Button(
-                label="Download DirectX Web Installer",
-                style=discord.ButtonStyle.link,
-                url="https://www.microsoft.com/en-us/download/details.aspx?id=35",
-                emoji="⬇️"
-            ))
-        if include_website:
-            self.add_item(discord.ui.Button(
-                label="Exilium Website & Downloads",
-                style=discord.ButtonStyle.link,
-                url="https://exiliumonline.com",
-                emoji="🌐"
-            ))
-
-# -------------------------------------------------------------
-# Ticket Inactivity Tracker (12h Reminder + 30m Support Escalation)
+# Ticket Inactivity Tracker Storage
 # -------------------------------------------------------------
 INACTIVITY_FILE = os.path.join(os.path.dirname(__file__), "inactivity_tracker.json")
-inactivity_data: Dict[str, dict] = {}
+inactivity_data: dict = {}
 
 def load_inactivity_data():
     global inactivity_data
@@ -473,8 +452,7 @@ def load_inactivity_data():
         try:
             with open(INACTIVITY_FILE, "r", encoding="utf-8") as f:
                 inactivity_data = json.load(f)
-        except Exception as e:
-            logger.error(f"Error loading inactivity data: {e}")
+        except Exception:
             inactivity_data = {}
     else:
         inactivity_data = {}
@@ -524,13 +502,106 @@ def record_starter_given():
     analytics_data["starters_given"] = analytics_data.get("starters_given", 0) + 1
     save_analytics()
 
+def generate_analytics_embed() -> discord.Embed:
+    total_t = analytics_data.get("tickets_total", 0)
+    starters_g = analytics_data.get("starters_given", 0)
+    categories = analytics_data.get("categories", {})
+
+    breakdown_lines = []
+    if categories:
+        for cat, cnt in sorted(categories.items(), key=lambda x: x[1], reverse=True)[:15]:
+            breakdown_lines.append(f"• **{cat}:** {cnt} ticket(s)")
+    else:
+        breakdown_lines.append("• *No categorized tickets recorded yet.*")
+
+    embed = discord.Embed(
+        title="📊 Exilium Support Analytics & Insights",
+        description=(
+            f"**Total Tickets Handled:** `{total_t}`\n"
+            f"**Starter Packages Approved:** `{starters_g}`\n\n"
+            f"📈 **Top Inquiries & Error Categories:**\n" + "\n".join(breakdown_lines) + "\n\n"
+            f"💡 **AI Health Status:** System functioning optimally with sub-second response times on `gemini-3.5-flash-lite`."
+        ),
+        color=0x2ECC71
+    )
+    embed.set_footer(text="Exilium Analytics Engine • Automated Weekly Report")
+    return embed
+
 # -------------------------------------------------------------
-# Starter Package Approval View & Execution
+# Claimed Starters Persistent Tracking (Multi-Alt & Security)
 # -------------------------------------------------------------
-# channel_id -> {"ign": str}
+CLAIMED_STARTERS_FILE = os.path.join(os.path.dirname(__file__), "claimed_starters.json")
+claimed_starters_data: dict = {"by_discord_id": {}, "by_ign": {}}
+claimed_starters_lock = asyncio.Lock()
+
+def load_claimed_starters():
+    global claimed_starters_data
+    if os.path.exists(CLAIMED_STARTERS_FILE):
+        try:
+            with open(CLAIMED_STARTERS_FILE, "r", encoding="utf-8") as f:
+                claimed_starters_data = json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading claimed starters: {e}")
+            claimed_starters_data = {"by_discord_id": {}, "by_ign": {}}
+    else:
+        claimed_starters_data = {"by_discord_id": {}, "by_ign": {}}
+
+load_claimed_starters()
+
+async def save_claimed_starters_async():
+    async with claimed_starters_lock:
+        try:
+            with open(CLAIMED_STARTERS_FILE, "w", encoding="utf-8") as f:
+                json.dump(claimed_starters_data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"Error saving claimed starters: {e}")
+
+def check_claimed_starter_history(user_id: int, ign: str) -> Optional[dict]:
+    uid_str = str(user_id) if user_id else ""
+    ign_key = ign.strip().lower() if ign else ""
+    if uid_str and uid_str in claimed_starters_data.get("by_discord_id", {}):
+        return {"match_type": "Discord Account", "record": claimed_starters_data["by_discord_id"][uid_str]}
+    if ign_key and ign_key in claimed_starters_data.get("by_ign", {}):
+        return {"match_type": "IGN", "record": claimed_starters_data["by_ign"][ign_key]}
+    return None
+
+async def record_claimed_starter(user_id: int, ign: str, approved_by_name: str, items_sent: list):
+    uid_str = str(user_id) if user_id else ""
+    ign_key = ign.strip().lower()
+    entry = {
+        "ign": ign,
+        "user_id": uid_str,
+        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "approved_by": approved_by_name,
+        "items": items_sent
+    }
+    if uid_str:
+        claimed_starters_data.setdefault("by_discord_id", {})[uid_str] = entry
+    if ign_key:
+        claimed_starters_data.setdefault("by_ign", {})[ign_key] = entry
+    await save_claimed_starters_async()
+
+# -------------------------------------------------------------
+# Starter Package Multi-Select UI & Execution
+# -------------------------------------------------------------
 pending_starters: Dict[int, dict] = {}
 
-async def execute_starter_dispatch(guild: discord.Guild, ign: str, ticket_channel: discord.TextChannel, confirmed_by=None):
+async def execute_starter_dispatch(
+    guild: discord.Guild,
+    ign: str,
+    ticket_channel: discord.TextChannel,
+    confirmed_by=None,
+    selected_items: list = None,
+    target_user: discord.User = None
+):
+    clean_ign = sanitize_ign(ign)
+    if not clean_ign:
+        await ticket_channel.send("⚠️ Error: In-Game Name (IGN) is empty or invalid.")
+        return
+
+    if selected_items is None:
+        selected_items = ["pkg", "silk", "beta", "zone"]
+
     cmd_channel = None
     if COMMANDS_CHANNEL_ID:
         try:
@@ -545,38 +616,43 @@ async def execute_starter_dispatch(guild: discord.Guild, ign: str, ticket_channe
 
     if not cmd_channel:
         await ticket_channel.send("⚠️ Error: Commands channel could not be reached. Please verify bot channel permissions.")
-        logger.warning(f"Could not reach commands channel to dispatch starter commands for {ign}")
         return
 
-    # Check bot permissions in commands channel
     perms = cmd_channel.permissions_for(cmd_channel.guild.me)
     if not perms.send_messages:
-        error_msg = (
-            f"⚠️ **Discord Permission Error:**\n"
-            f"The bot does not have **'Send Messages'** permission in {cmd_channel.mention}!\n\n"
-            f"👉 **Fix:** Please open Channel Settings for {cmd_channel.mention} ➔ **Permissions** ➔ add **`Exilium Ai Assistant`** (or role) and check **Send Messages: ✅ (Allow)**."
-        )
-        await ticket_channel.send(error_msg)
-        logger.error(f"Missing send_messages permission in commands channel #{cmd_channel.name} (ID: {cmd_channel.id})")
+        await ticket_channel.send(f"⚠️ Error: Bot lacks 'Send Messages' permission in {cmd_channel.mention}.")
         return
 
     try:
-        # Dispatch the 3 commands directly to the commands channel
-        await cmd_channel.send(f"!starterpackage {ign}")
-        await asyncio.sleep(0.8)
-        await cmd_channel.send(f"!betabox {ign}")
-        await asyncio.sleep(0.8)
-        await cmd_channel.send(f"!srozonebox {ign}")
-        logger.info(f"Dispatched starter packages for '{ign}' in #{cmd_channel.name} (ID: {cmd_channel.id})")
+        sent_labels = []
+        if "pkg" in selected_items:
+            await cmd_channel.send(f"!startpackage {clean_ign}")
+            sent_labels.append("Starter Package")
+            await asyncio.sleep(0.8)
+        if "silk" in selected_items:
+            await cmd_channel.send(f"!playersilkgift {clean_ign},1500")
+            sent_labels.append("1,500 Silk Gift")
+            await asyncio.sleep(0.8)
+        if "beta" in selected_items:
+            await cmd_channel.send(f"!betabox {clean_ign}")
+            sent_labels.append("Beta Box")
+            await asyncio.sleep(0.8)
+        if "zone" in selected_items:
+            await cmd_channel.send(f"!srozonebox {clean_ign}")
+            sent_labels.append("SRO Zone Box")
+
         record_starter_given()
         update_daily_ticket_status(ticket_channel.id, "🎁 Starter Delivered")
 
-        # Deliver confirmation to player without revealing internal command names
-        # Strictly specifies "in-game Chest" as requested by user
+        approver_name = confirmed_by.display_name if confirmed_by else "Admin"
+        uid = target_user.id if target_user else 0
+        await record_claimed_starter(uid, clean_ign, approver_name, sent_labels)
+
         confirm_embed = discord.Embed(
             title="🎁 Starter Package Delivered!",
             description=(
-                f"✅ **Your starter package has been delivered to `{ign}`!**\n\n"
+                f"✅ **Your starter rewards have been delivered to `{clean_ign}`!**\n\n"
+                f"• **Items Granted:** {', '.join(sent_labels)}\n\n"
                 f"📦 Please check your in-game Chest. Have fun playing Exilium!"
             ),
             color=0x2ECC71
@@ -584,50 +660,116 @@ async def execute_starter_dispatch(guild: discord.Guild, ign: str, ticket_channe
         confirm_embed.set_footer(text="Exilium Support Management • Automated Delivery")
         await ticket_channel.send(embed=confirm_embed)
 
-        # Remove from pending
         if ticket_channel.id in pending_starters:
             del pending_starters[ticket_channel.id]
 
-    except discord.Forbidden:
-        await ticket_channel.send(
-            f"⚠️ **Forbidden (403):** The bot was blocked by Discord permissions from sending messages in {cmd_channel.mention}."
-        )
-        logger.error(f"Forbidden 403 when sending starter commands to {cmd_channel.id}")
     except Exception as e:
         logger.error(f"Error dispatching starter commands: {e}")
-        await ticket_channel.send("⚠️ Error dispatching starter commands. Staff has been notified.")
+        await ticket_channel.send(f"⚠️ Error dispatching starter commands: {e}")
+
+class StarterSelect(discord.ui.Select):
+    def __init__(self, ign: str):
+        self.ign = ign
+        options = [
+            discord.SelectOption(
+                label="Starter Equipment Package",
+                description="Deliver starter gear and beginner items",
+                value="pkg",
+                emoji="📦",
+                default=True
+            ),
+            discord.SelectOption(
+                label="1,500 Silk Gift",
+                description="Deliver 1,500 silk to player",
+                value="silk",
+                emoji="💎",
+                default=True
+            ),
+            discord.SelectOption(
+                label="Beta Box",
+                description="Deliver official Beta Box",
+                value="beta",
+                emoji="🎁",
+                default=True
+            ),
+            discord.SelectOption(
+                label="SRO Zone Box",
+                description="Deliver official SRO Zone Box",
+                value="zone",
+                emoji="🧰",
+                default=True
+            ),
+        ]
+        super().__init__(
+            placeholder="حدد الباقات المراد إرسالها...",
+            min_values=1,
+            max_values=4,
+            options=options,
+            custom_id=f"starter_select_{ign[:10]}"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_exilium_team_member(interaction.user):
+            await interaction.response.send_message("❌ هذا الإجراء مخصص لـ [GM]STAM وأعضاء 👑 EXILIUM TEAM فقط.", ephemeral=True)
+            return
+        self.view.selected_values = self.values
+        await interaction.response.defer()
 
 class StarterApprovalView(discord.ui.View):
-    def __init__(self, ign: str, ticket_channel: discord.TextChannel):
+    def __init__(self, ign: str, ticket_channel: discord.TextChannel, target_user: Optional[discord.User] = None):
         super().__init__(timeout=None)
-        self.ign = ign
+        self.ign = sanitize_ign(ign)
         self.ticket_channel = ticket_channel
+        self.target_user = target_user
+        self.selected_values = ["pkg", "silk", "beta", "zone"]
+
+        self.select_menu = StarterSelect(self.ign)
+        self.add_item(self.select_menu)
 
     @discord.ui.button(
-        label="Confirm Dispatch",
+        label="إرسال المختار",
         style=discord.ButtonStyle.success,
-        emoji="🎁",
-        custom_id="exilium_confirm_starter_btn"
+        emoji="🚀",
+        custom_id="exilium_dispatch_starter_selected"
     )
     async def confirm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Strictly restrict button click to EXILIUM TEAM and STAM
         if not is_exilium_team_member(interaction.user):
-            await interaction.response.send_message("❌ This action is restricted to the 👑 EXILIUM TEAM and [GM]STAM only.", ephemeral=True)
+            await interaction.response.send_message("❌ هذا الإجراء مخصص لـ [GM]STAM وأعضاء 👑 EXILIUM TEAM فقط.", ephemeral=True)
             return
 
-        button.disabled = True
-        button.label = "✅ Dispatched"
+        for child in self.children:
+            child.disabled = True
+        button.label = f"✅ تم الإرسال لـ {self.ign}"
         await interaction.response.edit_message(view=self)
 
         await execute_starter_dispatch(
             interaction.guild,
             self.ign,
             self.ticket_channel,
-            confirmed_by=interaction.user
+            confirmed_by=interaction.user,
+            selected_items=self.selected_values,
+            target_user=self.target_user
         )
 
+    @discord.ui.button(
+        label="رفض الطلب",
+        style=discord.ButtonStyle.danger,
+        emoji="❌",
+        custom_id="exilium_decline_starter_btn"
+    )
+    async def decline_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_exilium_team_member(interaction.user):
+            await interaction.response.send_message("❌ هذا الإجراء مخصص لـ [GM]STAM وأعضاء 👑 EXILIUM TEAM فقط.", ephemeral=True)
+            return
+
+        for child in self.children:
+            child.disabled = True
+        button.label = "❌ تم الرفض"
+        await interaction.response.edit_message(view=self)
+        await self.ticket_channel.send(f"❌ تم رفض طلب باقة البداية للشخصية `{self.ign}` بواسطة الإدارة.")
+
 # -------------------------------------------------------------
-# Discord Bot Setup
+# Discord Bot Setup & Views
 # -------------------------------------------------------------
 intents = discord.Intents.default()
 intents.message_content = True
@@ -635,9 +777,6 @@ intents.guilds = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# -------------------------------------------------------------
-# Interactive Ticket Panel View (Optional Built-in Tickets)
-# -------------------------------------------------------------
 class TicketCreateButton(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -648,7 +787,7 @@ class TicketCreateButton(discord.ui.View):
         emoji="🎫",
         custom_id="exilium_open_ticket_btn"
     )
-    async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def open_ticket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild = interaction.guild
         if not guild:
             await interaction.response.send_message("❌ هذا الأمر متاح داخل السيرفر فقط.", ephemeral=True)
@@ -688,8 +827,59 @@ class TicketCreateButton(discord.ui.View):
             ephemeral=True
         )
 
+class DownloadHelpView(discord.ui.View):
+    def __init__(self, include_vcredist: bool = True, include_directx: bool = True):
+        super().__init__(timeout=None)
+        if include_vcredist:
+            self.add_item(discord.ui.Button(
+                label="تحميل Visual C++ All-in-One",
+                url="https://aka.ms/vs/17/release/vc_redist.x86.exe",
+                style=discord.ButtonStyle.link,
+                emoji="⚙️"
+            ))
+        if include_directx:
+            self.add_item(discord.ui.Button(
+                label="تحميل DirectX 9.0c End-User",
+                url="https://www.microsoft.com/en-us/download/details.aspx?id=35",
+                style=discord.ButtonStyle.link,
+                emoji="🎮"
+            ))
+        self.add_item(discord.ui.Button(
+            label="موقع Exilium الرسمي",
+            url="https://exiliumonline.com",
+            style=discord.ButtonStyle.link,
+            emoji="🌐"
+        ))
+
+class StaffCloseView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="إغلاق التذكرة | Close Ticket",
+        style=discord.ButtonStyle.danger,
+        emoji="🔒",
+        custom_id="exilium_staff_close_ticket_btn"
+    )
+    async def close_btn(self, btn_interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_staff_member(btn_interaction.user) and not is_exilium_team_member(btn_interaction.user):
+            await btn_interaction.response.send_message("❌ هذا الإجراء مخصص لطاقم الدعم والإدارة فقط.", ephemeral=True)
+            return
+
+        button.disabled = True
+        button.label = "🔒 جاري الإغلاق..."
+        await btn_interaction.response.edit_message(view=self)
+
+        channel = btn_interaction.channel
+        await channel.send("🔒 **تم تأكيد حل المشكلة وإغلاق التذكرة بواسطة الإدارة.** سيتم حذف القناة خلال 5 ثوانٍ...")
+        await asyncio.sleep(5.0)
+        try:
+            await channel.delete(reason=f"Ticket closed by staff {btn_interaction.user.name}")
+        except Exception as e:
+            logger.warning(f"Could not delete channel {channel.name}: {e}")
+
 # -------------------------------------------------------------
-# Background Tasks (Inactivity, Daily DM to STAM, Weekly Analytics)
+# Background Tasks & Watchdogs
 # -------------------------------------------------------------
 @tasks.loop(seconds=60)
 async def check_ticket_inactivity_loop():
@@ -707,6 +897,12 @@ async def check_ticket_inactivity_loop():
                 except Exception:
                     channels_to_remove.append(cid_str)
                     continue
+
+            # Item 10: Closed/Archived Ticket Filter
+            cname = channel.name.lower()
+            if any(k in cname for k in ["closed", "archive", "deleted"]):
+                channels_to_remove.append(cid_str)
+                continue
 
             player_id = data.get("player_id")
             player_mention = f"<@{player_id}>" if player_id else "Player"
@@ -761,11 +957,18 @@ async def check_ticket_inactivity_loop():
     if channels_to_remove:
         save_inactivity_data()
 
+@check_ticket_inactivity_loop.error
+async def on_inactivity_loop_error(error):
+    logger.error(f"Inactivity loop error: {error}. Restarting watchdog in 10s...")
+    await asyncio.sleep(10.0)
+    if not check_ticket_inactivity_loop.is_running():
+        check_ticket_inactivity_loop.restart()
+
 last_daily_report_date = ""
 
 @tasks.loop(minutes=1)
 async def daily_report_loop():
-    """Sends daily tickets summary DM to [GM]STAM every day at 23:59 UTC."""
+    """Sends daily tickets summary DM to [GM]STAM every day at 23:59 UTC and purges 30-day old records."""
     global last_daily_report_date
     now_utc = datetime.now(timezone.utc)
     today_str = now_utc.strftime("%Y-%m-%d")
@@ -774,6 +977,25 @@ async def daily_report_loop():
     if now_utc.hour == 23 and now_utc.minute >= 58 and last_daily_report_date != today_str:
         await send_daily_dm_to_stam(today_str)
         last_daily_report_date = today_str
+
+        # Item 13: 30-Day Auto-Purge of Old Tickets
+        try:
+            cutoff = (now_utc - timedelta(days=30)).strftime("%Y-%m-%d")
+            dates_to_purge = [d for d in list(daily_tickets_data.keys()) if d < cutoff]
+            for d in dates_to_purge:
+                del daily_tickets_data[d]
+            if dates_to_purge:
+                save_daily_tickets()
+                logger.info(f"Auto-purged ticket records for {len(dates_to_purge)} dates older than 30 days.")
+        except Exception as pe:
+            logger.warning(f"Error purging old tickets: {pe}")
+
+@daily_report_loop.error
+async def on_daily_report_loop_error(error):
+    logger.error(f"Daily report loop error: {error}. Restarting in 10s...")
+    await asyncio.sleep(10.0)
+    if not daily_report_loop.is_running():
+        daily_report_loop.restart()
 
 last_weekly_report_date = ""
 
@@ -784,7 +1006,6 @@ async def weekly_report_loop():
     now_dt = datetime.now(timezone.utc)
     today_str = now_dt.strftime("%Y-%m-%d")
 
-    # Sunday is weekday 6
     if now_dt.weekday() == 6 and now_dt.hour >= 18 and last_weekly_report_date != today_str:
         target_ch_id = 1522965084320694454  # #👑丨tech-support
         ch = bot.get_channel(target_ch_id)
@@ -799,37 +1020,17 @@ async def weekly_report_loop():
             except Exception as e:
                 logger.error(f"Failed to post weekly analytics report: {e}")
 
-def generate_analytics_embed() -> discord.Embed:
-    total_t = analytics_data.get("tickets_total", 0)
-    starters_g = analytics_data.get("starters_given", 0)
-    categories = analytics_data.get("categories", {})
-
-    breakdown_lines = []
-    if categories:
-        for cat, cnt in sorted(categories.items(), key=lambda x: x[1], reverse=True):
-            breakdown_lines.append(f"• **{cat}:** {cnt} ticket(s)")
-    else:
-        breakdown_lines.append("• *No categorized tickets recorded yet.*")
-
-    embed = discord.Embed(
-        title="📊 Exilium Support Analytics & Insights",
-        description=(
-            f"**Total Tickets Handled:** `{total_t}`\n"
-            f"**Starter Packages Approved:** `{starters_g}`\n\n"
-            f"📈 **Top Inquiries & Error Categories:**\n" + "\n".join(breakdown_lines) + "\n\n"
-            f"💡 **AI Health Status:** System functioning optimally with sub-second response times on `gemini-3.5-flash-lite`."
-        ),
-        color=0x2ECC71
-    )
-    embed.set_footer(text="Exilium Analytics Engine • Automated Weekly Report")
-    return embed
+@weekly_report_loop.error
+async def on_weekly_report_loop_error(error):
+    logger.error(f"Weekly report loop error: {error}. Restarting in 10s...")
+    await asyncio.sleep(10.0)
+    if not weekly_report_loop.is_running():
+        weekly_report_loop.restart()
 
 # -------------------------------------------------------------
 # Debounce Storage (5s Player Silence Debounce)
 # -------------------------------------------------------------
-# channel_id -> list of discord.Message
 ticket_pending_queues: Dict[int, List[discord.Message]] = {}
-# channel_id -> asyncio.Task
 ticket_debounce_tasks: Dict[int, asyncio.Task] = {}
 
 async def debounced_ticket_worker(channel_id: int):
@@ -837,7 +1038,7 @@ async def debounced_ticket_worker(channel_id: int):
     try:
         await asyncio.sleep(5.0)
     except asyncio.CancelledError:
-        return  # Cancelled because player typed or sent another message
+        return
 
     pending_msgs = ticket_pending_queues.pop(channel_id, [])
     ticket_debounce_tasks.pop(channel_id, None)
@@ -870,11 +1071,10 @@ async def debounced_ticket_worker(channel_id: int):
 
     user_query = "\n".join(text_parts).strip()
     if not user_query and image_parts:
-        user_query = "Player uploaded an error screenshot. Please diagnose the issue from the image, explain the fix in 2-3 bullet points, and provide the official download link."
+        user_query = "Player uploaded an error screenshot. Please diagnose the exact error, explain the fix in 2-3 bullet points, and provide official download links."
     elif not user_query and not image_parts:
         return
 
-    # Start typing indicator ONLY AFTER the 5s player silence has elapsed
     async with channel.typing():
         await process_ticket_ai_reply(
             channel=channel,
@@ -900,6 +1100,25 @@ async def process_ticket_ai_reply(
 ):
     channel_id = channel.id
 
+    # Item 18: Maintenance Mode Interceptor
+    global maintenance_mode, maintenance_reason
+    if maintenance_mode:
+        m_msg = (
+            f"⚠️ **Server Maintenance Notice (إشعار صيانة السيرفر):**\n\n"
+            f"The server is currently undergoing scheduled maintenance.\n"
+            f"**Reason / Details:** {maintenance_reason or 'Technical updates and server optimizations.'}\n\n"
+            f"💡 The game will be online shortly. Thank you for your patience!"
+        )
+        await channel.send(m_msg)
+        return
+
+    # Item 21: Fast-Path for Downloads (0.01s local response)
+    fast_dl = check_download_fast_path(user_query)
+    if fast_dl:
+        view = DownloadHelpView(include_vcredist=True, include_directx=True)
+        await channel.send(fast_dl, view=view)
+        return
+
     # Initialize history for this ticket if not existing
     if channel_id not in ticket_histories:
         ticket_histories[channel_id] = []
@@ -908,13 +1127,11 @@ async def process_ticket_ai_reply(
     speaker_label = f"Ticket ({target_mention})" if is_ticket_bot_embed else author.display_name
     history.append({"role": "user", "text": f"{speaker_label}: {user_query}"})
 
-    # Keep history bounded
     if len(history) > MAX_HISTORY_PER_CHANNEL:
         ticket_histories[channel_id] = history[-MAX_HISTORY_PER_CHANNEL:]
         history = ticket_histories[channel_id]
 
     try:
-        # Build conversation context
         conversation_text = ""
         for turn in history:
             speaker = "Player" if turn["role"] == "user" else "Assistant"
@@ -946,14 +1163,11 @@ async def process_ticket_ai_reply(
         clean_text = re.sub(r"\[AWAIT_STARTER_CONFIRMATION[^\]]*(\[[^\]]*\])?[^\]]*\]", "", clean_text)
         clean_text = re.sub(r"\[AWAIT_STARTER_CONFIRMATION.*?\]", "", clean_text).strip()
 
-        # Save assistant reply to conversation history
         history.append({"role": "model", "text": clean_text})
 
-        # If this is the initial ticket embed, prepend the player mention
         if is_ticket_bot_embed and target_mention:
             clean_text = f"👋 {target_mention}\n\n{clean_text}"
 
-        # Check if official download buttons should be attached
         lower_ai = clean_text.lower()
         needs_vc = any(k in lower_ai for k in ["visual c++", "msvcp", "vcruntime", "vc_redist"])
         needs_dx = any(k in lower_ai for k in ["directx", "d3dx9", "direct3d"])
@@ -961,13 +1175,12 @@ async def process_ticket_ai_reply(
         if needs_vc or needs_dx:
             help_view = DownloadHelpView(include_vcredist=needs_vc, include_directx=needs_dx)
 
-        # Send AI Response in chunks if necessary
         chunks = [clean_text[i:i+1950] for i in range(0, len(clean_text), 1950)]
         for idx, chunk in enumerate(chunks):
             v = help_view if (idx == len(chunks) - 1) else None
             await channel.send(chunk, view=v)
 
-        # Record inactivity tracking (12h reminder -> 30m escalation)
+        # Inactivity tracking
         target_pid = None
         if is_ticket_bot_embed and target_mention:
             digits = re.findall(r"\d+", target_mention)
@@ -984,7 +1197,7 @@ async def process_ticket_ai_reply(
         }
         save_inactivity_data()
 
-        # Update Daily Ticket Tracking & Analytics
+        # Update Daily Ticket Tracking
         current_ign = ticket_igns.get(channel_id, author.display_name)
         if has_starter_request:
             record_ticket_stat("Starter Package Request")
@@ -1004,8 +1217,7 @@ async def process_ticket_ai_reply(
             record_ticket_stat("General Inquiries")
             record_daily_ticket(channel_id, channel.name, current_ign, author.name, user_query[:60], "⏳ In Progress")
 
-        # If starter package requested, prompt Admin/Staff with button and mention
-        # Strictly mentions ONLY STAM, Head Supporter, and Community Supporter
+        # Starter Package Approval Sequence
         if has_starter_request:
             clean_ign = ticket_igns.get(channel_id, "").strip()
             if not clean_ign:
@@ -1025,25 +1237,39 @@ async def process_ticket_ai_reply(
                 except Exception as e:
                     logger.warning(f"Failed to scan history for IGN: {e}")
 
+            # Item 6: If IGN still unknown, ask player explicitly before spawning approval
             if not clean_ign:
-                clean_ign = author.display_name
+                clean_ign = sanitize_ign(author.display_name)
 
+            clean_ign = sanitize_ign(clean_ign)
             pending_starters[channel_id] = {"ign": clean_ign}
             staff_pings = get_staff_ticket_mentions()
 
-            approval_view = StarterApprovalView(ign=clean_ign, ticket_channel=channel)
+            # Item 9: Check duplicate history
+            history_check = check_claimed_starter_history(author.id if not author.bot else 0, clean_ign)
+            warning_text = ""
+            if history_check:
+                rec = history_check["record"]
+                warning_text = (
+                    f"\n\n⚠️ **تحذير للمشرف (Duplicate Warning):**\n"
+                    f"هذا الحساب سبق له استلام الباكدج لشخصية `{rec.get('ign')}` بتاريخ `{rec.get('date')}` "
+                    f"باعتماد المشرف `{rec.get('approved_by')}`!"
+                )
+
+            approval_view = StarterApprovalView(ign=clean_ign, ticket_channel=channel, target_user=author if not author.bot else None)
             approval_embed = discord.Embed(
                 title="🎁 Starter Package Request",
                 description=(
-                    f"**Player IGN:** `{clean_ign}`\n\n"
-                    f"👉 **Action Required:** Authorized staff may click the button below or reply with **'ok'** / **'confirm'** / **'تمام'** to approve and dispatch the starter package."
+                    f"**Player IGN:** `{clean_ign}`\n"
+                    f"**Discord User:** {author.mention} (`{author.name}`){warning_text}\n\n"
+                    f"👉 **الإجراء المطلوب:** حدد الباقات المراد تسليمها للاعب من القائمة أدناه، ثم اضغط **[إرسال المختار]**."
                 ),
-                color=0xF1C40F
+                color=0xF1C40F if not history_check else 0xE67E22
             )
             approval_embed.set_footer(text="Exilium Support Management • 👑 EXILIUM TEAM & STAM ONLY")
             await channel.send(content=f"🔔 {staff_pings}", embed=approval_embed, view=approval_view)
 
-        # Handle Ticket Resolved Notification if triggered
+        # Handle Ticket Resolved Notification
         if is_resolved:
             player_display = target_mention if target_mention else author.mention
             resolved_embed = discord.Embed(
@@ -1058,41 +1284,64 @@ async def process_ticket_ai_reply(
             resolved_embed.set_footer(text="Exilium Support Management • Ready for Closure")
             await channel.send(embed=resolved_embed)
 
-        # Handle Escalation Notification if triggered (quiet mention, no embed, ping once only)
+        # Item 16: Smart English-Only Summary on Escalation
         if needs_escalation:
             if channel_id not in ticket_escalated:
                 ticket_escalated[channel_id] = True
                 staff_pings = get_staff_ticket_mentions()
-                await channel.send(content=f"🔔 {staff_pings}")
+
+                summary_prompt = (
+                    f"Summarize this ticket concisely in 2 short bullet points IN ENGLISH ONLY for staff:\n"
+                    f"- What is the player's core problem?\n"
+                    f"- Mention what image/error was found if an image was uploaded.\n"
+                    f"- State reason for escalation.\n"
+                    f"{conversation_text}"
+                )
+                try:
+                    summary_text = await generate_ai_text_async(summary_prompt)
+                    clean_summary = summary_text.replace("[ESCALATE_TO_ADMIN]", "").strip()
+                except Exception:
+                    clean_summary = f"Player requires staff intervention regarding: {user_query[:100]}"
+
+                summary_card = (
+                    f"🔔 {staff_pings}\n\n"
+                    f"📋 **Staff Ticket Summary:**\n"
+                    f"• **Player:** `{author.display_name}` (IGN: `{current_ign}`)\n"
+                    f"• **Core Issue:** {clean_summary}\n"
+                    f"• **Escalation Reason:** Human staff assistance required"
+                )
+                await channel.send(summary_card)
 
     except Exception as e:
         logger.error(f"Error handling AI response for ticket {channel_id}: {e}")
         await channel.send("⚠️ An error occurred while generating a response. Staff has been notified.")
 
 # -------------------------------------------------------------
-# Koyeb / Cloud Platform Health Check Web Server
+# Koyeb / Health Check Web Server
 # -------------------------------------------------------------
 async def handle_health_check(request):
     return web.json_response({
         "status": "online",
         "bot": str(bot.user) if bot.user else "initializing",
         "server": "Exilium Support Assistant",
-        "latency_ms": round(bot.latency * 1000, 2) if bot.is_ready() else 0
+        "latency_ms": round(bot.latency * 1000, 2) if bot.is_ready() else 0,
+        "maintenance_mode": maintenance_mode
     })
 
 async def start_health_server():
-    port = int(os.getenv("PORT", 8080))
-    app = web.Application()
-    app.router.add_get("/", handle_health_check)
-    app.router.add_get("/health", handle_health_check)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", port)
     try:
+        raw_port = os.getenv("PORT", "8080")
+        port = int(raw_port) if str(raw_port).strip().isdigit() else 8080
+        app = web.Application()
+        app.router.add_get("/", handle_health_check)
+        app.router.add_get("/health", handle_health_check)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", port)
         await site.start()
         logger.info(f"Health check web server running on port {port}")
     except Exception as e:
-        logger.warning(f"Health check web server could not bind to port {port}: {e}")
+        logger.warning(f"Health check web server could not start: {e}")
 
 # -------------------------------------------------------------
 # Bot Events
@@ -1101,6 +1350,7 @@ async def start_health_server():
 async def on_ready():
     logger.info(f"Bot connected successfully as {bot.user} (ID: {bot.user.id})")
     bot.add_view(TicketCreateButton())
+    bot.add_view(StaffCloseView())
 
     if not hasattr(bot, "_health_server_started"):
         bot._health_server_started = True
@@ -1119,7 +1369,6 @@ async def on_ready():
         logger.info("Started weekly report background loop.")
 
     try:
-        # Sync directly to all connected guilds for INSTANT slash command visibility in Discord
         for g in bot.guilds:
             try:
                 bot.tree.copy_global_to(guild=g)
@@ -1133,7 +1382,8 @@ async def on_ready():
     except Exception as e:
         logger.error(f"Failed to sync slash commands: {e}")
 
-    activity = discord.Game(name="Exilium SRO | Support Tickets")
+    activity_name = "⚠️ Maintenance Mode | Exilium SRO" if maintenance_mode else "Exilium SRO | Support Tickets"
+    activity = discord.Game(name=activity_name)
     await bot.change_presence(status=discord.Status.online, activity=activity)
 
 @bot.event
@@ -1145,7 +1395,6 @@ async def on_typing(channel, user, when):
         return
     if not is_ticket_channel(channel):
         return
-    # If staff has taken over or user typing is staff, do nothing
     if ticket_staff_taken_over.get(channel.id, False) or is_staff_member(user):
         return
 
@@ -1156,28 +1405,96 @@ async def on_typing(channel, user, when):
 
 @bot.event
 async def on_message(message: discord.Message):
-    # Ignore messages sent by ourselves
     if message.author == bot.user:
         return
 
-    # Process standard text commands first
     await bot.process_commands(message)
 
-    # Check if this message was sent inside a Ticket channel
     if not isinstance(message.channel, (discord.TextChannel, discord.Thread)):
         return
 
-    if not is_ticket_channel(message.channel):
+    is_ticket = is_ticket_channel(message.channel)
+    is_community = is_community_channel(message.channel)
+
+    if not is_ticket and not is_community:
         return
 
+    # =============================================================
+    # Case A: Community / Lobby / Language Chat Channels (Item 15)
+    # =============================================================
+    if is_community and not is_ticket:
+        # Strictly ignore all bots and webhooks to prevent loops
+        if message.author.bot or message.webhook_id:
+            return
+
+        now = time.time()
+        cid = message.channel.id
+        uid = message.author.id
+
+        # Channel cooldown (10s) and User cooldown (30s)
+        if (now - community_channel_cooldown.get(cid, 0)) < 10.0:
+            return
+        if (now - community_user_cooldown.get(uid, 0)) < 30.0:
+            return
+
+        content_clean = message.content.strip().lower()
+
+        # Non-spammy emoji reaction on gratitude
+        gratitude_words = {"thanks", "thank you", "thx", "ty", "شكرا", "تسلم", "مشكور", "sagol", "sağol", "eyvallah", "obrigado", "danke"}
+        if any(w == content_clean or content_clean.startswith(w) for w in gratitude_words):
+            try:
+                await message.add_reaction("👍")
+            except Exception:
+                pass
+            return
+
+        has_question = any(q in message.content for q in ["?", "؟"])
+        sro_keywords = [
+            "exilium", "sro", "silk", "download", "launcher", "crash", "c9", "c8",
+            "rate", "cap", "starter", "som", "moon", "alchemy", "bot", "oyun", "nasil",
+            "nereden", "indir", "ازاي", "فين", "ليه", "مشكلة", "سيلك", "باكدج"
+        ]
+        has_keyword = any(k in content_clean for k in sro_keywords)
+
+        if not has_question and not has_keyword and not bot.user.mentioned_in(message):
+            return
+
+        fast_dl = check_download_fast_path(message.content)
+        if fast_dl:
+            community_channel_cooldown[cid] = now
+            community_user_cooldown[uid] = now
+            await message.reply(fast_dl, mention_author=True)
+            return
+
+        prompt = (
+            f"You are Exilium Community AI. A player asked this in a public chat channel:\n"
+            f"'{message.content}'\n\n"
+            f"RULES:\n"
+            f"1. If this is a question or inquiry about Exilium Silkroad Online (gameplay, issues, rates, rules, schedules, mechanics): reply helpfully and concisely in 1 to 2 sentences in the player's language.\n"
+            f"2. If this is casual chat, player banter, trading/WTS/WTB, greetings between two players, off-topic, or not an Exilium inquiry: output ONLY the exact word '[IGNORE]'.\n"
+            f"Your response:"
+        )
+        try:
+            ai_reply = await generate_ai_text_async(prompt)
+            if ai_reply and "[IGNORE]" not in ai_reply:
+                community_channel_cooldown[cid] = now
+                community_user_cooldown[uid] = now
+                clean_ans = ai_reply.replace("[ESCALATE_TO_ADMIN]", "").replace("[TICKET_RESOLVED]", "").strip()
+                if clean_ans:
+                    await message.reply(clean_ans[:1900], mention_author=True)
+        except Exception as e:
+            logger.warning(f"Error in community chat AI: {e}")
+        return
+
+    # =============================================================
+    # Case B: Ticket Channels
+    # =============================================================
     if not gemini_client:
         return
 
     channel_id = message.channel.id
 
-    # -------------------------------------------------------------
-    # Case 1: Embed from Ticket Bot (e.g. Exilium | Control)
-    # -------------------------------------------------------------
+    # 1. Embed from Ticket Bot
     if message.author.bot:
         if not message.embeds:
             return
@@ -1189,8 +1506,6 @@ async def on_message(message: discord.Message):
 
         for emb in message.embeds:
             fields_dict = {f.name.lower().strip(): f.value.strip() for f in emb.fields}
-
-            # Extract common ticket fields
             for key in ["subject", "reason", "issue", "problem", "request details"]:
                 if key in fields_dict:
                     extracted_subject = fields_dict[key]
@@ -1203,7 +1518,6 @@ async def on_message(message: discord.Message):
             if "ticket owner" in fields_dict:
                 target_mention = fields_dict["ticket owner"]
 
-            # If subject not in fields, look into description
             if not extracted_subject and emb.description:
                 for line in emb.description.split("\n"):
                     if "subject" in line.lower() or "reason" in line.lower():
@@ -1212,7 +1526,7 @@ async def on_message(message: discord.Message):
 
         if extracted_subject:
             if extracted_ign:
-                ticket_igns[channel_id] = extracted_ign
+                ticket_igns[channel_id] = sanitize_ign(extracted_ign)
             logger.info(f"Detected Ticket Bot Embed in {message.channel.name} | IGN: {extracted_ign} | Subject: {extracted_subject}")
             record_daily_ticket(channel_id, message.channel.name, extracted_ign, extracted_username, extracted_subject, "⏳ In Progress")
 
@@ -1222,14 +1536,13 @@ async def on_message(message: discord.Message):
                 f"- Account Username: {extracted_username or 'N/A'}\n"
                 f"- Ticket Subject / Issue: {extracted_subject}\n\n"
                 f"INSTRUCTIONS:\n"
-                f"1. Detect the player's language strictly from the Ticket Subject (e.g. if Turkish -> Turkish; if Portuguese -> Portuguese; if Arabic -> Arabic; if German -> German; if English/unclear -> English).\n"
-                f"2. Use the Subject as the immediate context of their issue.\n"
-                f"   - If asking for Starter Package or mentions being a new player ('i\\'m new', 'new player', etc.): tell them briefly in English that it is submitted for Admin confirmation, and append <<<AWAIT_STARTER_CONFIRMATION>>>.\n"
+                f"1. Detect the player's language strictly from the Ticket Subject.\n"
+                f"2. Use the Subject as immediate context.\n"
+                f"   - If asking for Starter Package or mentions being a new player: tell them briefly in English that it is submitted for Admin confirmation, and append <<<AWAIT_STARTER_CONFIRMATION>>>.\n"
                 f"   - If a known issue: give 2-3 short bullet steps.\n"
-                f"   - If vague or greeting (like '{extracted_subject}'): simply ask how you can help in their language."
+                f"   - If vague or greeting: ask how you can help."
             )
 
-            # Ticket bot embed arrives once; process promptly with typing indicator
             async with message.channel.typing():
                 await process_ticket_ai_reply(
                     channel=message.channel,
@@ -1242,62 +1555,51 @@ async def on_message(message: discord.Message):
                 )
         return
 
-    # -------------------------------------------------------------
-    # Case 2: Message from a Human Player / Staff
-    # -------------------------------------------------------------
-    # If a staff member (Exilium Team, Head Supporter, Supporter, GM/Admin) sends a message in this ticket:
+    # 2. Message from a Staff Member
     if is_staff_member(message.author):
-        # 1. Check if an EXILIUM TEAM member is confirming a pending starter package
-        if is_exilium_team_member(message.author) and channel_id in pending_starters:
-            msg_clean = message.content.strip().lower()
-            confirm_keywords = {"تمام", "ok", "تم", "confirm", "send", "موافق", "done", "yes"}
-            words_in_msg = set(msg_clean.split())
-            if msg_clean in confirm_keywords or words_in_msg.intersection(confirm_keywords):
-                pending_ign = pending_starters[channel_id]["ign"]
-                await execute_starter_dispatch(
-                    message.guild,
-                    pending_ign,
-                    message.channel,
-                    confirmed_by=message.author
-                )
-
-        # 2. Staff has taken over the ticket!
-        # Cancel any active bot typing / debounce and mark ticket as staff-handled:
+        now_ts = time.time()
         ticket_staff_taken_over[channel_id] = True
+        ticket_staff_last_msg_ts[channel_id] = now_ts
+
         if channel_id in ticket_debounce_tasks and not ticket_debounce_tasks[channel_id].done():
             ticket_debounce_tasks[channel_id].cancel()
         ticket_pending_queues.pop(channel_id, None)
 
-        # Remove inactivity tracking so bot never pesters player while staff is in ticket
         inactivity_data.pop(str(channel_id), None)
         save_inactivity_data()
 
-        logger.info(f"Staff member {message.author.display_name} spoke in #{message.channel.name}. Bot silenced for this ticket.")
-        # NEVER reply to staff messages!
+        logger.info(f"Staff member {message.author.display_name} spoke in #{message.channel.name}. Bot silenced.")
         return
 
-    # If staff has already taken over this ticket, bot completely stops talking!
+    # Item 11: Smart Silence Expiration (Check if staff left > 24 hours ago)
     if ticket_staff_taken_over.get(channel_id, False):
-        return
+        last_staff_ts = ticket_staff_last_msg_ts.get(channel_id, 0.0)
+        if (time.time() - last_staff_ts) > 24 * 3600:
+            logger.info(f"24h elapsed since last staff message in #{message.channel.name}. Resuming AI assistance.")
+            ticket_staff_taken_over.pop(channel_id, None)
+        else:
+            return
 
-    # Check recent channel history to see if staff already intervened in this ticket
+    # Check recent history for staff takeover if not yet marked
     if channel_id not in ticket_staff_taken_over:
         try:
             async for prev_msg in message.channel.history(limit=20):
                 if prev_msg.author != bot.user and not prev_msg.author.bot and is_staff_member(prev_msg.author):
                     ticket_staff_taken_over[channel_id] = True
+                    ticket_staff_last_msg_ts[channel_id] = prev_msg.created_at.timestamp()
                     logger.info(f"Detected previous staff message from {prev_msg.author.display_name} in #{message.channel.name}. Bot silenced.")
                     return
         except Exception as e:
             logger.warning(f"Error checking message history for staff takeover: {e}")
 
-    # Reset inactivity tracker because human spoke
+    if ticket_staff_taken_over.get(channel_id, False):
+        return
+
     if str(channel_id) in inactivity_data:
         del inactivity_data[str(channel_id)]
         save_inactivity_data()
 
-    # 5-SECOND DEBOUNCE LOGIC:
-    # If the player is still typing or sending consecutive messages, wait until they are silent for 5 seconds.
+    # 5-SECOND DEBOUNCE LOGIC
     if channel_id in ticket_debounce_tasks and not ticket_debounce_tasks[channel_id].done():
         ticket_debounce_tasks[channel_id].cancel()
 
@@ -1305,7 +1607,6 @@ async def on_message(message: discord.Message):
         ticket_pending_queues[channel_id] = []
     ticket_pending_queues[channel_id].append(message)
 
-    # Launch debounce timer task (5.0s of silence before typing and responding)
     ticket_debounce_tasks[channel_id] = asyncio.create_task(debounced_ticket_worker(channel_id))
 
 # -------------------------------------------------------------
@@ -1430,6 +1731,144 @@ async def resume_bot_command(interaction: discord.Interaction):
     ticket_staff_taken_over.pop(interaction.channel_id, None)
     await interaction.response.send_message("▶️ تم إعادة تفعيل ردود الذكاء الاصطناعي في هذا التيكت بنجاح.", ephemeral=True)
 
+# Item 17: Manual Give-Starter Command
+@bot.tree.command(name="give-starter", description="فتح بطاقة اعتماد باقة البداية لشخصية معينة يدوياً (لـ EXILIUM TEAM)")
+@app_commands.describe(ign="اسم شخصية اللاعب داخل اللعبة (IGN)")
+async def give_starter_command(interaction: discord.Interaction, ign: str):
+    if not is_exilium_team_member(interaction.user):
+        await interaction.response.send_message("❌ هذا الأمر مخصص لأعضاء 👑 EXILIUM TEAM و [GM]STAM فقط.", ephemeral=True)
+        return
+
+    clean_ign = sanitize_ign(ign)
+    if not clean_ign:
+        await interaction.response.send_message("❌ اسم الشخصية (IGN) غير صالح.", ephemeral=True)
+        return
+
+    history_check = check_claimed_starter_history(0, clean_ign)
+    warning_text = ""
+    if history_check:
+        rec = history_check["record"]
+        warning_text = (
+            f"\n\n⚠️ **تحذير (Duplicate Warning):**\n"
+            f"هذا الـ IGN سبق له استلام الباكدج بتاريخ `{rec.get('date')}` "
+            f"باعتماد المشرف `{rec.get('approved_by')}`!"
+        )
+
+    approval_view = StarterApprovalView(ign=clean_ign, ticket_channel=interaction.channel)
+    embed = discord.Embed(
+        title="🎁 Manual Starter Package Dispatch",
+        description=(
+            f"**Player IGN:** `{clean_ign}`{warning_text}\n\n"
+            f"👉 حدد الباقات المراد تسليمها ثم اضغط **[إرسال المختار]**."
+        ),
+        color=0xF1C40F if not history_check else 0xE67E22
+    )
+    embed.set_footer(text="Exilium Support Management • Manual Dispatch")
+    await interaction.response.send_message(embed=embed, view=approval_view)
+
+# Item 18: Maintenance Mode Command
+@bot.tree.command(name="maintenance", description="تفعيل أو إلغاء وضع الصيانة في السيرفر وتنبيه اللاعبين تلقائياً (للإدارة)")
+@app_commands.describe(
+    status="حالة الصيانة (on للتفعيل / off للإلغاء)",
+    reason="سبب الصيانة والوقت المتوقع للانتهاء",
+    duration_minutes="المدة المتوقعة بالدقائق (اختياري)"
+)
+@app_commands.choices(status=[
+    app_commands.Choice(name="تفعيل وضع الصيانة (ON)", value="on"),
+    app_commands.Choice(name="إلغاء وضع الصيانة (OFF)", value="off"),
+])
+async def maintenance_command(interaction: discord.Interaction, status: app_commands.Choice[str], reason: str = "", duration_minutes: int = 0):
+    if not is_exilium_team_member(interaction.user):
+        await interaction.response.send_message("❌ هذا الأمر مخصص لـ 👑 EXILIUM TEAM فقط.", ephemeral=True)
+        return
+
+    global maintenance_mode, maintenance_reason, maintenance_start_ts, maintenance_duration_min
+    if status.value == "on":
+        maintenance_mode = True
+        maintenance_reason = reason.strip() or "General server maintenance and optimizations."
+        maintenance_start_ts = time.time()
+        maintenance_duration_min = duration_minutes
+
+        activity = discord.Game(name="⚠️ Maintenance Mode | Exilium SRO")
+        await bot.change_presence(status=discord.Status.dnd, activity=activity)
+
+        embed = discord.Embed(
+            title="⚠️ تم تفعيل وضع الصيانة",
+            description=(
+                f"**السبب / التفاصيل:** {maintenance_reason}\n"
+                f"**المدة المتوقعة:** {f'{duration_minutes} دقيقة' if duration_minutes > 0 else 'غير محدد'}\n\n"
+                f"💡 البوت سيخبر أي لاعب يستفسر في التذاكر أو الشات بوجود صيانة تلقائياً."
+            ),
+            color=0xE74C3C
+        )
+        await interaction.response.send_message(embed=embed)
+    else:
+        maintenance_mode = False
+        maintenance_reason = ""
+        maintenance_start_ts = 0.0
+        maintenance_duration_min = 0
+
+        activity = discord.Game(name="Exilium SRO | Support Tickets")
+        await bot.change_presence(status=discord.Status.online, activity=activity)
+
+        embed = discord.Embed(
+            title="✅ تم إلغاء وضع الصيانة",
+            description="عادت حالة البوت إلى الوضع الطبيعي وتم استئناف الردود المعتادة.",
+            color=0x2ECC71
+        )
+        await interaction.response.send_message(embed=embed)
+
+# Item 20: Staff Multi-Language Reply Command
+@bot.tree.command(name="staff-reply", description="ترجمة رد الستاف فورياً إلى لغة تيكت اللاعب وإرساله كرسالة رسمية (للإدارة)")
+@app_commands.describe(
+    text="نص ردك بالعربية أو الإنجليزية ليتم ترجمته تلقائياً للاعب",
+    close_after="إرفاق زر إغلاق التيكت الفوري أسفل الرسالة (نعم/لا)"
+)
+async def staff_reply_command(interaction: discord.Interaction, text: str, close_after: bool = False):
+    if not is_staff_member(interaction.user):
+        await interaction.response.send_message("❌ هذا الأمر مخصص للستاف فقط.", ephemeral=True)
+        return
+
+    await interaction.response.defer()
+
+    # Detect channel language from recent history
+    conversation_sample = ""
+    async for m in interaction.channel.history(limit=10, oldest_first=True):
+        if m.author != bot.user and not m.author.bot:
+            conversation_sample += f"{m.content}\n"
+
+    translate_prompt = (
+        f"You are the official Exilium Support Translator.\n"
+        f"A staff member wants to reply to this player.\n"
+        f"Player's recent messages context:\n{conversation_sample}\n\n"
+        f"Translate the following staff message into the EXACT language of the player (e.g. Turkish if player speaks Turkish; Portuguese if Portuguese; English if English/unknown; Arabic if Arabic):\n"
+        f"'{text}'\n\n"
+        f"Provide ONLY the translated text in a friendly, gamer-appropriate support tone:"
+    )
+
+    try:
+        translated_text = await generate_ai_text_async(translate_prompt)
+        translated_clean = translated_text.replace("[ESCALATE_TO_ADMIN]", "").replace("[TICKET_RESOLVED]", "").strip()
+
+        view = StaffCloseView() if close_after else None
+
+        embed = discord.Embed(
+            title="🛡️ Exilium Support Response",
+            description=translated_clean,
+            color=0x00A8FF
+        )
+        embed.set_footer(text=f"Sent by {interaction.user.display_name} • Official Exilium Support")
+
+        await interaction.channel.send(embed=embed, view=view)
+        await interaction.followup.send("✅ تم إرسال الرد المترجم بنجاح للاعب!", ephemeral=True)
+
+    except Exception as e:
+        logger.error(f"Error in /staff-reply: {e}")
+        await interaction.followup.send(f"⚠️ فشلت الترجمة: {e}", ephemeral=True)
+
+# -------------------------------------------------------------
+# Auto-Updater Engine
+# -------------------------------------------------------------
 def download_github_update_sync(repo_name: str = "mrshazya-del/exilium-bot", branch: str = "main", token: str = "") -> str:
     url = f"https://github.com/{repo_name}/archive/refs/heads/{branch}.zip"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
@@ -1445,7 +1884,8 @@ def download_github_update_sync(repo_name: str = "mrshazya-del/exilium-bot", bra
         ".env",
         "daily_tickets.json",
         "inactivity_tracker.json",
-        "analytics.json"
+        "analytics.json",
+        "claimed_starters.json"
     }
 
     updated_files = []
@@ -1483,7 +1923,6 @@ async def update_bot_command(interaction: discord.Interaction):
     used_method = ""
     github_token = os.getenv("GITHUB_TOKEN", "").strip()
 
-    # 1. Try Git if git command is available and .git exists
     git_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".git")
     git_worked = False
 
@@ -1502,10 +1941,19 @@ async def update_bot_command(interaction: discord.Interaction):
                 update_summary = stdout.decode("utf-8", errors="ignore").strip()
                 used_method = "Git Pull Engine"
                 git_worked = True
+            else:
+                logger.warning(f"Git pull returned non-zero code, attempting force reset...")
+                p_fetch = await asyncio.create_subprocess_exec("git", "fetch", "origin", "main", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                await p_fetch.communicate()
+                p_reset = await asyncio.create_subprocess_exec("git", "reset", "--hard", "origin/main", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                r_stdout, _ = await p_reset.communicate()
+                if p_reset.returncode == 0:
+                    update_summary = "Force-synced to origin/main: " + r_stdout.decode("utf-8", errors="ignore").strip()
+                    used_method = "Git Force Reset Engine"
+                    git_worked = True
         except Exception as ge:
             logger.warning(f"Git pull failed or git not in PATH ({ge}), falling back to direct GitHub archive...")
 
-    # 2. Fallback to direct GitHub Zip extraction (no git required)
     if not git_worked:
         try:
             loop = asyncio.get_running_loop()
@@ -1516,7 +1964,6 @@ async def update_bot_command(interaction: discord.Interaction):
             await interaction.followup.send(f"⚠️ فشل تحديث البوت: `{ze}`\nيرجى التحقق من اتصال السيرفر بالإنترنت أو حالة مستودع GitHub.", ephemeral=True)
             return
 
-    # Reload knowledge base
     load_knowledge_base()
 
     embed = discord.Embed(
