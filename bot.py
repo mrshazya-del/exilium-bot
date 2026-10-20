@@ -3,6 +3,7 @@ import zipfile
 import shutil
 import os
 import sys
+import subprocess
 import json
 import logging
 import re
@@ -61,7 +62,7 @@ raw_prefixes = os.getenv("TICKET_CHANNEL_PREFIXES", "ticket-,support-,ticket_")
 TICKET_CHANNEL_PREFIXES = [p.strip().lower() for p in raw_prefixes.split(",") if p.strip()]
 TICKET_CATEGORY_ID = os.getenv("TICKET_CATEGORY_ID", "").strip()
 
-BOT_VERSION = "2.1.0"
+BOT_VERSION = "2.1.1"
 BOT_BUILD_DATE = "2026-10-20"
 
 # Community / Lobby Channels & Category IDs
@@ -145,6 +146,50 @@ def is_community_channel(channel: discord.abc.GuildChannel) -> bool:
             return True
 
     return False
+
+def kill_other_bot_instances() -> list:
+    """Find and terminate any other ghost/zombie python processes running bot.py."""
+    killed = []
+    my_pid = os.getpid()
+
+    if sys.platform == "win32":
+        try:
+            ps_cmd = 'Get-CimInstance Win32_Process | Where-Object { $_.Name -like "*python*" } | Select-Object ProcessId, CommandLine | ConvertTo-Json'
+            p = subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True, text=True, errors="ignore")
+            if p.stdout.strip():
+                try:
+                    data = json.loads(p.stdout)
+                    if isinstance(data, dict):
+                        data = [data]
+                    for item in data:
+                        pid = item.get("ProcessId")
+                        cmdline = item.get("CommandLine") or ""
+                        if pid and pid != my_pid and "bot.py" in cmdline:
+                            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+                            killed.append(pid)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"Error checking Windows duplicate processes: {e}")
+    else:  # Linux / POSIX
+        try:
+            p = subprocess.run(["pgrep", "-f", "bot.py"], capture_output=True, text=True, errors="ignore")
+            for line in p.stdout.splitlines():
+                line = line.strip()
+                if line.isdigit():
+                    pid = int(line)
+                    if pid != my_pid:
+                        try:
+                            os.kill(pid, 9)
+                            killed.append(pid)
+                        except Exception:
+                            pass
+        except Exception as e:
+            logger.warning(f"Error checking Linux duplicate processes: {e}")
+
+    if killed:
+        logger.info(f"Cleaned up {len(killed)} duplicate bot process(es): {killed}")
+    return killed
 
 def sanitize_ign(raw_ign: str) -> str:
     """Strictly strip newlines, spaces, and special symbols to prevent command injection."""
@@ -1370,6 +1415,7 @@ async def start_health_server():
 @bot.event
 async def on_ready():
     logger.info(f"Bot connected successfully as {bot.user} (ID: {bot.user.id})")
+    kill_other_bot_instances()
     bot.add_view(TicketCreateButton())
     bot.add_view(StaffCloseView())
 
@@ -1498,11 +1544,11 @@ async def on_message(message: discord.Message):
             f"3. If this is purely casual chat between players, jokes, trading/WTS/WTB, or off-topic chatter: output ONLY the exact word '[IGNORE]'.\n"
             f"Your response:"
         )
+        community_channel_cooldown[cid] = now
+        community_user_cooldown[uid] = now
         try:
             ai_reply = await generate_ai_text_async(prompt)
             if ai_reply and "[IGNORE]" not in ai_reply:
-                community_channel_cooldown[cid] = now
-                community_user_cooldown[uid] = now
                 clean_ans = ai_reply.replace("[ESCALATE_TO_ADMIN]", "").replace("[TICKET_RESOLVED]", "").strip()
                 if clean_ans:
                     await message.reply(clean_ans[:1900], mention_author=True)
@@ -1935,6 +1981,19 @@ def download_github_update_sync(repo_name: str = "mrshazya-del/exilium-bot", bra
 
     return f"Updated {len(updated_files)} files: " + ", ".join(updated_files[:6])
 
+@bot.tree.command(name="kill-duplicates", description="إنهاء أي نسخ مكررة من البوت تعمل في خلفية السيرفر (للإدارة)")
+async def kill_duplicates_command(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    if not is_exilium_team_member(interaction.user):
+        await interaction.followup.send("❌ هذا الأمر مخصص لـ 👑 EXILIUM TEAM فقط.", ephemeral=True)
+        return
+
+    killed = kill_other_bot_instances()
+    if killed:
+        await interaction.followup.send(f"✅ تم إنهاء {len(killed)} نسخة مكررة تعمل بالخلفية: `{killed}`. يعمل البوت الآن بنسخة واحدة فقط!", ephemeral=True)
+    else:
+        await interaction.followup.send("✅ لا توجد أي نسخ مكررة تعمل بالخلفية! البوت يعمل بنسخة واحدة سليمة.", ephemeral=True)
+
 @bot.tree.command(name="version", description="عرض رقم إصدار البوت الحالي وحالة النظام (Bot Version & Info)")
 async def version_command(interaction: discord.Interaction):
     latency = round(bot.latency * 1000, 2) if bot.is_ready() else 0
@@ -2026,7 +2085,11 @@ async def update_bot_command(interaction: discord.Interaction):
 
     logger.info(f"Auto-update successful via {used_method} by {interaction.user}. Restarting process...")
     await asyncio.sleep(1.0)
-    os.execv(sys.executable, [sys.executable] + sys.argv)
+    if sys.platform == "win32":
+        subprocess.Popen([sys.executable] + sys.argv)
+        os._exit(0)
+    else:
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
 # -------------------------------------------------------------
 # Main Runner
