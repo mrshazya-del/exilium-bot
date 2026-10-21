@@ -293,12 +293,6 @@
       "solution_en": "Download and install the missing Microsoft Visual C++ Redistributable packages and DirectX 9 runtime components, then restart your PC."
     },
     {
-      "issue": "Character Stuck / Instant DC After Relog",
-      "cause": "Character stuck in a bugged state, corrupted position, or crashed alchemy state causing instant disconnection upon login.",
-      "solution_ar": "لا يوجد زر فك تعليق على الموقع في إكسيليوم. يجب على اللاعب تزويد البوت باسم الشخصية (IGN)، ويتم عمل منشن فوراً لـ @Astro و @STAM لمراجعة قاعدة البيانات وإصلاح موضع الشخصية/العنصر في السيرفر، مع بقاء اللاعب غير متصل (Offline) حتى يتم التأكيد.",
-      "solution_en": "There is no website unstick button. The player must provide their Character Name (IGN), and the ticket is escalated to @Astro and @STAM to check server database logs and teleport/fix the character while the player remains offline."
-    },
-    {
       "issue": "Player gets disconnected (DC) and loses currency/items when trying to purchase items (like Immo) using gift silk.",
       "cause": "Reported in server support ticket",
       "solution_ar": "تحقق من سجلات الخادم (Server Logs) لمعرفة ما إذا تمت عملية الشخصية وخصم العملة (مثل 300m)، وإذا لم يتم تسليم العنصر، قم بإضافته يدويًا أو رد العملة للمتسبب في المشكلة التقنية.",
@@ -323,12 +317,6 @@
       "solution_en": "1. Go to Windows Settings > Display > Graphics. 2. Browse and select `sro_client.exe`. 3. Click Options > select 'High Performance' and check 'Don't use optimizations for windowed games'. Save and restart launcher as Admin."
     },
     {
-      "issue": "Character Stuck / Instant DC After Relog",
-      "cause": "Character stuck in a bugged state, corrupted position, or crashed alchemy state causing instant disconnection upon login.",
-      "solution_ar": "لا يوجد زر فك تعليق على الموقع في إكسيليوم. يجب على اللاعب تزويد البوت باسم الشخصية (IGN)، ويتم عمل منشن فوراً لـ @Astro و @STAM لمراجعة قاعدة البيانات وإصلاح موضع الشخصية/العنصر في السيرفر، مع بقاء اللاعب غير متصل (Offline) حتى يتم التأكيد.",
-      "solution_en": "There is no website unstick button. The player must provide their Character Name (IGN), and the ticket is escalated to @Astro and @STAM to check server database logs and teleport/fix the character while the player remains offline."
-    },
-    {
       "issue": "Model Switcher Not Working / Failed to Switch",
       "cause": "The weapon currently has an active Glow effect (like Bloody Glow) preventing the model switcher from applying, or requires manual server application.",
       "solution_ar": "1. إذا كان السلاح عليه أي تأثير توهج (Glow مثل Bloody Glow)، يجب إزالة التوهج أولاً والمحاولة مجدداً.\n2. إذا استمرت المشكلة: ضع السلاح والـ Switcher في الصفحة الأولى (Page 1) من الحقيبة، وقم بتسجيل الخروج تماماً (Log Off)، وسيتم عمل منشن لـ @STAM لتطبيقه لك يدوياً من السيرفر.",
@@ -339,12 +327,6 @@
       "cause": "Player accidentally sold valuable gear, weapon, or job suit to an NPC shop.",
       "solution_ar": "اطلب من اللاعب اسم الشخصية بدقة وتفاصيل العنصر المباع، ثم قم بتصعيد التذكرة إلى @STAM وفريق الإدارة للتحقق من السجلات واستعادة العنصر يدوياً.",
       "solution_en": "Ask the player for their exact character name and item details, then escalate the ticket to @STAM and the Admin team for in-game log verification and manual item restoration."
-    },
-    {
-      "issue": "Character Stuck / Instant DC After Relog",
-      "cause": "Character stuck in a bugged state, corrupted position, or crashed alchemy state causing instant disconnection upon login.",
-      "solution_ar": "لا يوجد زر فك تعليق على الموقع في إكسيليوم. يجب على اللاعب تزويد البوت باسم الشخصية (IGN)، ويتم عمل منشن فوراً لـ @Astro و @STAM لمراجعة قاعدة البيانات وإصلاح موضع الشخصية/العنصر في السيرفر، مع بقاء اللاعب غير متصل (Offline) حتى يتم التأكيد.",
-      "solution_en": "There is no website unstick button. The player must provide their Character Name (IGN), and the ticket is escalated to @Astro and @STAM to check server database logs and teleport/fix the character while the player remains offline."
     },
     {
       "issue": "Error C9 Connection Issue",
@@ -517,5 +499,492 @@
       "bot_action_en": "Provide direct download mirrors (Direct link, Mega, Google Drive, MediaFire) or explain server rates and game features directly without mentioning staff.",
       "bot_action_ar": "قم بتزويد روابط التحميل المباشرة والمرايا (ميجا، جوجل درايف، ميديافاير) أو اشرح معدلات السيرفر وخصائص اللعبة مباشرة دون الحاجة لعمل منشن لأي مشرف."
     }
-  ]
+  ],
+  "ticket_support_playbook_2025_2026": [
+    {
+      "category_name": "model_switcher_and_glows",
+      "total_analyzed_tickets": 146,
+      "common_problems": [
+        {
+          "problem_title": "Model Switcher Not Working / Failing to Use",
+          "problem_title_ar": "مبدل الموديل لا يعمل / يفشل الاستخدام",
+          "symptoms": [
+            "Getting 'failed to use switch model' error message",
+            "Item switcher scroll won't apply to weapon or shield",
+            "Model skin showing incorrectly or defaulting to a different degree (e.g. Egy B showing as Egy A)"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "What weapon/shield are you trying to use it on?",
+            "What specific model degree or type are you trying to apply (e.g., D15, D16, Egy A, Egy B)?",
+            "Did you place the model switcher scroll in the first slot?",
+            "Does the weapon currently have a glow or active alchemy that conflicts?"
+          ],
+          "required_player_actions": [
+            "Provide Character Name (IGN)",
+            "Provide a screenshot or video showing the item, model switcher scroll, and error/behavior",
+            "Wear or equip the item in-game for staff inspection"
+          ],
+          "actual_solution_en": "Staff inspects the item via database/tools, ensures it is placed in the correct slot, checks for conflicting glows, and applies the fix directly or instructs the player to teleport (tp once) after the backend adjustment.",
+          "actual_solution_ar": "يقوم الطاقم بفحص الأداة عبر قاعدة البيانات/الأدوات، والتأكد من وضعها في الخانة الصحيحة، والتحقق من وجود تأثيرات متضاربة، ثم تطبيق الإصلاح مباشرة أو طلب الانتقال الفضائي (Teleport) من اللاعب.",
+          "escalation_target": "@Astro or @STAM",
+          "when_to_escalate": "When the model switcher scroll consistently fails or bugs out on specific high-tier items (like Egy A/B or D15/D16 shields/spears) requiring database-level intervention."
+        },
+        {
+          "problem_title": "Glows Disappearing or Not Showing After Model Switch",
+          "problem_title_ar": "اختفاء التوهج (Glow) أو عدم ظهوره بعد تغيير الموديل",
+          "symptoms": [
+            "Weapon or shield does not show any glow after applying a model switcher",
+            "Glow item disappeared upon use"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "What is your Character Name (IGN)?",
+            "Which weapon or shield are you using?",
+            "What model and glow combination were you trying to apply (e.g. blood glow + adv b + egy b)?"
+          ],
+          "required_player_actions": [
+            "Remove current glow temporarily to test",
+            "Provide screenshots or video evidence of the weapon lacking the glow",
+            "Keep the item equipped in inventory"
+          ],
+          "actual_solution_en": "Staff verifies item state, instructs player to temporarily remove existing glows or test weapon state, and manually corrects the weapon skin/glow mapping in the database if bugged.",
+          "actual_solution_ar": "يتحقق الطاقم من حالة الأداة، ويطلب من اللاعب إزالة التوهجات الحالية مؤقتاً للاختبار، ويقوم بإصلاح ربط الموديل/التوهج يدوياً في قاعدة البيانات إذا كان هناك خلل.",
+          "escalation_target": "@Astro",
+          "when_to_escalate": "When a glow or advanced alchemy modifier bugs out or vanishes during a model switch."
+        },
+        {
+          "problem_title": "Model Switcher Box Closed Without Choosing / Lost Box",
+          "problem_title_ar": "إغلاق صندوق مبدل الموديل دون اختيار / ضياع الصندوق",
+          "symptoms": [
+            "Battle Pass model switcher box disappeared because the UI was closed before making a selection"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "What is your Character Name (IGN)?",
+            "Which box or switcher reward are you claiming?"
+          ],
+          "required_player_actions": [
+            "Provide Character Name (IGN)"
+          ],
+          "actual_solution_en": "Staff verifies the missing box/reward and re-adds a new model switcher box to the player's chest or inventory.",
+          "actual_solution_ar": "يتحقق الطاقم من الصندوق/الجائزة المفقودة ويقوم بإضافة صندوق مبدل موديل جديد إلى صندوق أو مخزن اللاعب.",
+          "escalation_target": "Support Staff / @oslow404 / @Astro",
+          "when_to_escalate": "Immediately when a player accidentally closes a reward selection box and requests a replacement."
+        }
+      ],
+      "staff_golden_rules": [
+        "Always ask for the Character Name (IGN), weapon type, and exact model degree before troubleshooting.",
+        "Require screenshots or short video recordings (.mov/.png) of the item, inventory slot, and error message.",
+        "Changing a model switcher does not require removing the old model first; players can directly activate/switch to the new model (old model is replaced/deleted without refund unless specified otherwise).",
+        "Never process item restorations or manual model fixes without verifying item placement in the first slot or checking the item in-game via equipped state."
+      ]
+    },
+    {
+      "category_name": "character_stuck_and_dc",
+      "total_analyzed_tickets": 149,
+      "common_problems": [
+        {
+          "problem_title": "Character Stuck and Disconnecting on Login",
+          "problem_title_ar": "الشخصية عالقة وتفصل عند تسجيل الدخول",
+          "symptoms": [
+            "Instant DC upon logging into the character",
+            "Character is stuck after a crash or event/dungeon",
+            "Cannot move or use reverse/restart"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "What is your Character Name (IGN)?",
+            "Where did you crash or get stuck (e.g. event, dungeon, specific area)?"
+          ],
+          "required_player_actions": [
+            "Provide Character Name (IGN)",
+            "Log into your account at exiliumonline.com and use the Char Unstick feature",
+            "Stay offline while staff handles manual intervention if needed"
+          ],
+          "actual_solution_en": "Log into your account at exiliumonline.com and use the Char Unstick feature to teleport your character to Jangan. If it fails or you continue to DC, provide your IGN so an Admin or Staff member (@Astro, @STAM) can manually move or fix your character from the database side.",
+          "actual_solution_ar": "سجل الدخول إلى حسابك على موقع exiliumonline.com واستخدم ميزة فك تعليق الشخصية (Char Unstick) لنقل شخصيتك إلى جانجان. إذا استمرت المشكلة، أعطنا اسم الشخصية (IGN) لكي يقوم أحد المشرفين بنقلك يدوياً.",
+          "escalation_target": "@Astro, @STAM, or Support Staff",
+          "when_to_escalate": "When the website's Char Unstick feature fails or the player experiences continuous instant disconnects upon logging in."
+        },
+        {
+          "problem_title": "Stuck After Event or Dungeon Crash (League, Blazing, Alchemy Room)",
+          "problem_title_ar": "العلقان بعد الخروج أو الفصل المفاجئ داخل الفعاليات أو الدنجن",
+          "symptoms": [
+            "Disappearing pillars/bosses after reconnecting",
+            "Missing buffs, stats, or items after an event/dungeon crash",
+            "Respawning incorrectly with reset skills or stuck in an event area"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "Did you disconnect while inside an event or dungeon like League of Legends or Blazing Dungeon?",
+            "Did you try to teleport once?"
+          ],
+          "required_player_actions": [
+            "Teleport one time (e.g. from Jangan to Hotan or back to town)",
+            "Provide screenshots if necessary"
+          ],
+          "actual_solution_en": "Teleport once (e.g. using a teleport/return script to another town) to refresh your session data and sync your character state after crashing inside an equalized event or dungeon. If quest progress or items are lost due to server bugs/crashes, provide your IGN and details for staff review.",
+          "actual_solution_ar": "قم بالانتقال (التيلبرت) مرة واحدة إلى مدينة أخرى لتحديث بيانات الجلسة ومزامنة حالة الشخصية بعد الفصل داخل الفعالية أو الدنجن. إذا فقدت أغراض أو تقدم بسبب كراش السيرفر، يرجى تزويدنا باسم الشخصية.",
+          "escalation_target": "@Astro or @STAM",
+          "when_to_escalate": "When teleporting does not restore missing dungeon progress, entry tokens, or bugged items."
+        }
+      ],
+      "staff_golden_rules": [
+        "Always instruct players to try the website's 'Char Unstick' feature first before requesting manual staff intervention.",
+        "For event/dungeon related sync issues or missing buffs/items after a crash, always ask the player to teleport at least once before escalating.",
+        "Always collect the exact Character Name (IGN) and screenshots when database checks or manual admin unsticks are required."
+      ]
+    },
+    {
+      "category_name": "donations_silk_and_payment",
+      "total_analyzed_tickets": 1927,
+      "common_problems": [
+        {
+          "problem_title": "Incorrect Binance ID Provided for Payouts/Donations",
+          "problem_title_ar": "رابط أو معرف بايننس غير صحيح لعمليات الدفع أو التبرع",
+          "symptoms": [
+            "Funds or money did not drop/arrive",
+            "Transaction delayed due to wrong ID digits"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "What is your Binance ID?",
+            "Can you verify your payment credentials?"
+          ],
+          "required_player_actions": [
+            "Provide correct Binance ID",
+            "Check account details for missing numbers"
+          ],
+          "actual_solution_en": "Staff identified that the player's Binance ID was missing a digit (e.g., incomplete ID like 372060546). Player must provide the correct, complete Binance ID so staff can verify and process the transaction.",
+          "actual_solution_ar": "قام طاقم العمل بتحديد أن معرف بايننس الخاص باللاعب كان ينقصه رقم. يجب على اللاعب تقديم معرف بايننس الصحيح والمكتمل ليتمكن الطاقم من التحقق ومعالجة المعاملة.",
+          "escalation_target": "@STAM or Support Staff",
+          "when_to_escalate": "When payment/payout fails to arrive due to mismatched or incorrect account IDs."
+        },
+        {
+          "problem_title": "Wallet Feature Disabled / Converting Wallet Balance to Silks",
+          "problem_title_ar": "خاصية المحفظة معطلة / تحويل رصيد المحفظة إلى سيلك",
+          "symptoms": [
+            "Player wants to withdraw USD/$ from wallet",
+            "Wallet is disabled"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "What is your account name or character name?",
+            "Do you want to transfer the amount for silks?"
+          ],
+          "required_player_actions": [
+            "State desired amount to transfer",
+            "Request silk conversion instead of wallet withdrawal"
+          ],
+          "actual_solution_en": "Staff clarifies that the wallet feature was disabled a month ago. However, players can transfer their accumulated wallet amount directly into silks through staff assistance.",
+          "actual_solution_ar": "وضح طاقم العمل أن خاصية المحفظة تم تعطيلها قبل شهر. ومع ذلك، يمكن للاعبين تحويل مبلغ المحفظة الخاص بهم مباشرة إلى سيلك بمساعدة الطاقم.",
+          "escalation_target": "@STAM (Donations/DB)",
+          "when_to_escalate": "When a player inquires about old wallet balances or needs manual conversion to silks."
+        },
+        {
+          "problem_title": "Accessing Special Store Bonuses After Website Login",
+          "problem_title_ar": "الوصول إلى مكافآت المتجر الخاصة بعد تسجيل الدخول للموقع",
+          "symptoms": [
+            "Player asking where to find bonuses or store specials",
+            "Unfamiliar with website store layout"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "Have you logged into the website store?"
+          ],
+          "required_player_actions": [
+            "Log in to https://www.exiliumonline.com/account/store",
+            "Navigate to the Silk Store Menu"
+          ],
+          "actual_solution_en": "Direct the player to log in via the official Exilium store website (www.exiliumonline.com/account/store), where special bonuses can be found directly through the Silk Store Menu.",
+          "actual_solution_ar": "توجيه اللاعب لتسجيل الدخول عبر موقع متجر إكسيليوم الرسمي، حيث يمكن العثور على المكافآت الخاصة من خلال قائمة متجر السيلك.",
+          "escalation_target": "Support Staff",
+          "when_to_escalate": "When players need guidance regarding website account features or store navigation."
+        }
+      ],
+      "staff_golden_rules": [
+        "Always verify the player's correct payment credentials (such as Binance ID digits) before processing financial or donation issues.",
+        "Direct players to the official website store link (exiliumonline.com/account/store) for store bonuses and account balance management.",
+        "If the direct wallet withdrawal feature is disabled, offer the alternative option to transfer available balances into silks."
+      ]
+    },
+    {
+      "category_name": "lost_sold_deleted_items",
+      "total_analyzed_tickets": 45,
+      "common_problems": [
+        {
+          "problem_title": "Sold Job Suit or Weapon/Item to NPC",
+          "problem_title_ar": "بيع بدلة العمل أو السلاح/الأغراض للـ NPC بالخطأ",
+          "symptoms": [
+            "Sold special job suit (trader/thief) or gear to NPC",
+            "Cannot rebuy or didn't get refunded properly",
+            "Accidentally destroyed or sold high-plus item (+11 shield, spear, etc.)"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "What is your Character Name (IGN)?",
+            "Which item/suit did you sell or lose?",
+            "Did you try to check the NPC buyback tab or hammer?"
+          ],
+          "required_player_actions": [
+            "Provide Character Name (IGN)",
+            "Specify exact details of the lost item"
+          ],
+          "actual_solution_en": "Staff checks server database logs to verify the item sale timestamp and details (e.g., using Astro's DB lookup logs), then manually restores or refunds the item if verified.",
+          "actual_solution_ar": "يقوم طاقم العمل بفحص سجلات قاعدة بيانات السيرفر للتحقق من تفاصيل ووقت بيع الأغراض، ثم استرجاعها أو تعويض اللاعب يدويًا.",
+          "escalation_target": "@Astro (Database/Dev) or @gu1sro",
+          "when_to_escalate": "Escalate to Database/Dev team when a player accidentally sells a valuable item (+11 or job suit) and cannot rebuy it back from the NPC."
+        },
+        {
+          "problem_title": "Server Disconnect or Rollback Causing Missing Items/Skills",
+          "problem_title_ar": "انقطاع الاتصال أو التراجع يتسبب في اختفاء الأغراض أو المهارات",
+          "symptoms": [
+            "Got disconnected after an event/league of legends/crash",
+            "Logged back in and character appeared reset or missing specific items/skills/tokens"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "What is your Character Name (IGN)?",
+            "What exact items or tokens are missing?"
+          ],
+          "required_player_actions": [
+            "Provide Character Name (IGN)",
+            "List missing items clearly"
+          ],
+          "actual_solution_en": "Wait for server maintenance or developer verification. The admin/dev checks logs, fixes the bug or server state, and restores the items exactly as they were.",
+          "actual_solution_ar": "الانتظار حتى صيانة السيرفر أو فحص المطور، حيث يقوم المطور بمراجعة السجلات وإعادة الأغراض المفقودة كما كانت.",
+          "escalation_target": "@Astro or @zaxxon.1 (Developer)",
+          "when_to_escalate": "When items or skills disappear due to a server crash or rollback issue requiring database restoration."
+        },
+        {
+          "problem_title": "Accidental Wrong Purchase from NPC",
+          "problem_title_ar": "شراء غرض خاطئ من الـ NPC بالخطأ",
+          "symptoms": [
+            "Bought the wrong weapon, upgrade item, or too many potions (e.g., 10k berserk potions)",
+            "Bought lucky mask instead of lucky mask upgrader"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "What is your Character Name (IGN)?",
+            "What did you buy by mistake and what do you actually need?"
+          ],
+          "required_player_actions": [
+            "Provide Character Name (IGN)",
+            "Stay offline or wait for staff instruction"
+          ],
+          "actual_solution_en": "Staff checks the transaction, takes note of the wrong item, and swaps or refunds the correct item/currency after developer review.",
+          "actual_solution_ar": "يقوم طاقم العمل بفحص المعاملة واستبدال أو تعويض الغرض الصحيح بعد مراجعة المطور.",
+          "escalation_target": "@Astro or Support Staff",
+          "when_to_escalate": "When a player requests a swap or refund for an accidental NPC purchase."
+        }
+      ],
+      "staff_golden_rules": [
+        "Always ask for the player's Character Name (IGN) first before investigating logs.",
+        "Check the NPC buyback or hammer option first before escalating to developers for item sales.",
+        "Database log checks (SQL queries) for sold/deleted items must be performed by Developers or designated Admins (.astro1337 / zaxxon.1).",
+        "Never process refunds or item restorations without verifying database logs and exact item attributes (OptLvl, Stats, Plus)."
+      ]
+    },
+    {
+      "category_name": "gameplay_pets_and_alchemy",
+      "total_analyzed_tickets": 78,
+      "common_problems": [
+        {
+          "problem_title": "Cannot add blues or attributes to Avatar items",
+          "problem_title_ar": "لا يمكن إضافة البلورات أو الخصائص إلى أزياء الأفاتار",
+          "symptoms": [
+            "Player cannot apply blues to avatar",
+            "Error or failure when attempting to drag stones to avatar"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "Are you using avatar-specific magic stones?",
+            "Provide a clear screenshot of the issue."
+          ],
+          "required_player_actions": [
+            "Obtain correct Avatar Magic Stones from events, Magic POP, or activities",
+            "Drag the magic stones onto the avatar item in the inventory window"
+          ],
+          "actual_solution_en": "Avatar blues/attributes in Exilium can only be added using Avatar Magic Stones. Ensure you are using the correct Magic Stones specifically for avatars, and drag them onto your avatar item in your inventory window.",
+          "actual_solution_ar": "بلورات وخصائص الأفاتار في إكسيليوم يتم إضافتها فقط باستخدام أحجار سحر الأفاتار المخصصة. تأكد من استخدام الأحجار الصحيحة الخاصة بالأفاتار واسحبها فوق عنصر الأفاتار في نافذة الحقيبة.",
+          "escalation_target": "Support Staff",
+          "when_to_escalate": "Escalate if the player provides proof of using correct stones and experiencing a confirmed game bug."
+        },
+        {
+          "problem_title": "Pet movement speed discrepancy or bugs",
+          "problem_title_ar": "مشكلة في اختلاف سرعة حركة الحيوانات الأليفة أو أخطائها",
+          "symptoms": [
+            "Pet movement speed is not the same",
+            "Abnormal pet behavior or movement"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "Which specific pet are you using?",
+            "Provide screenshots or details of the speed difference."
+          ],
+          "required_player_actions": [
+            "Provide Character Name (IGN)",
+            "Provide details or screenshots of the bug"
+          ],
+          "actual_solution_en": "Staff takes the report for verification. Player is asked to provide details/screenshots so the team can investigate the pet mechanics.",
+          "actual_solution_ar": "يقوم طاقم العمل بتسجيل البلاغ للتحقق. يُطلب من اللاعب تقديم التفاصيل أو لقطات الشاشة لكي يتمكن الفريق من التحقق من خصائص الحيوان الأليف.",
+          "escalation_target": "@STAM, @Astro",
+          "when_to_escalate": "Always notify the team for verification when game mechanics or movement discrepancies are reported."
+        },
+        {
+          "problem_title": "Missing items or rewards from chests / Battle Pass pet box",
+          "problem_title_ar": "اختفاء العناصر أو المكافآت من الصناديق / صندوق حيوانات باتل باس",
+          "symptoms": [
+            "Opened box/chest from Season Rank or Battle Pass and nothing appeared",
+            "Selected a pet (e.g., Colorful Dragon) and it didn't come to inventory/chest"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "What is your Character Name (IGN)?",
+            "Which box or reward did you open?"
+          ],
+          "required_player_actions": [
+            "Provide Character Name (IGN)",
+            "State exact reward/box source"
+          ],
+          "actual_solution_en": "Staff checks logs and database regarding reward distribution from season ranks or battle pass boxes.",
+          "actual_solution_ar": "يقوم طاقم العمل بمراجعة السجلات وقاعدة البيانات بخصوص توزيع المكافآت من رتب المواسم أو صناديق باتل باس.",
+          "escalation_target": "@STAM, @Astro",
+          "when_to_escalate": "Escalate to database administrators immediately when a player claims a reward box consumed an item without granting the pet/item."
+        }
+      ],
+      "staff_golden_rules": [
+        "Always require the player's Character Name (IGN) and clear screenshots before investigating missing items, bugs, or alchemy issues.",
+        "Verify whether auto-alchemy functions or specific game systems were used when players report abnormal item enhancement results.",
+        "Do not reset PvP entry limits if a player forgot to take a quest, but staff may manually complete the quest as a courtesy if verified."
+      ]
+    },
+    {
+      "category_name": "moderation_reports_and_bans",
+      "total_analyzed_tickets": 75,
+      "common_problems": [
+        {
+          "problem_title": "Scammed by Imposter/Fake Guild Member",
+          "problem_title_ar": "النصب بواسطة شخص ينتحل صفة عضو في النقابة",
+          "symptoms": [
+            "Player traded valuable items like weapons (+11 / 80% wep) to an imposter thinking it was a guild member (e.g. Steeg)"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "Do you have screenshots of the conversation?"
+          ],
+          "required_player_actions": [
+            "Provide character name (IGN)",
+            "Provide screenshots of the conversation"
+          ],
+          "actual_solution_en": "Staff verify the logs or report, but generally state there is nothing staff can do if players trade outside official systems due to multiple prior warnings sent through the game and Discord.",
+          "actual_solution_ar": "يؤكد طاقم العمل أنه لا يمكنهم فعل شيء حيال عمليات النصب خارج النظام الرسمي نظراً لكثرة التحذيرات السابقة عبر اللعبة والديسكورد.",
+          "escalation_target": "@STAM or Support Staff",
+          "when_to_escalate": "Escalate to management/database admins only if systemic impersonation or alt-character tracing is required."
+        },
+        {
+          "problem_title": "Battle Royale Event Ban Inquiries",
+          "problem_title_ar": "الاستفسار عن حظر فعاليات باتل رويال",
+          "symptoms": [
+            "Player cannot register for Battle Royale",
+            "Player asking when the Battle Royale ban will be lifted"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "What is your Character Name (IGN)?",
+            "Did you team up during the last battle royale?"
+          ],
+          "required_player_actions": [
+            "Provide Character Name (IGN)"
+          ],
+          "actual_solution_en": "Bans resulting from events like Battle Royale (typically for teaming up or rule-breaking) normally last for 7 days automatically.",
+          "actual_solution_ar": "الحظر الناتج عن الفعاليات مثل باتل رويال (عادة بسبب التعاون بين اللاعبين أو مخالفة القواعد) يستمر عادة لمدة 7 أيام تلقائياً.",
+          "escalation_target": "@gu1sro, @STAM, or @Astro",
+          "when_to_escalate": "When checking specific event logs and verifying ban expiration timestamps."
+        },
+        {
+          "problem_title": "RMT / Real Money Trading (Selling Silk or Items for Cash)",
+          "problem_title_ar": "البيع مقابل أموال حقيقية (بيع الحرير أو الأغراض بالدولار)",
+          "symptoms": [
+            "Player reporting footpets or characters selling silk/items for real money (e.g., 1k silk for $0.9)",
+            "Player banned for associating with sellers"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "Do you have any screenshots?",
+            "What is your main account name / IGN?"
+          ],
+          "required_player_actions": [
+            "Provide screenshot proofs",
+            "Provide main account and character name"
+          ],
+          "actual_solution_en": "Staff check logs for transaction links to sellers. Confirmed RMT sellers and associated accounts are permanently banned ('done banned').",
+          "actual_solution_ar": "يقوم الطاقم بفحص السجلات للبحث عن روابط مع البائعين. يتم حظر بائعي التجارة الحقيقية والحسابات المرتبطة بهم نهائياً.",
+          "escalation_target": "@Astro or @STAM",
+          "when_to_escalate": "When verifying logs between players and known RMT sellers for ban execution."
+        },
+        {
+          "problem_title": "In-Game Insults, Free Speech, and Harassment",
+          "problem_title_ar": "الإهانات داخل اللعبة، حرية التعبير، والمضايقات",
+          "symptoms": [
+            "Players reporting insults regarding nationality, family, or personal matters in global chat"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "What is the exact reason or context shown?",
+            "Do you have screenshots?"
+          ],
+          "required_player_actions": [
+            "Provide character names and proof screenshots"
+          ],
+          "actual_solution_en": "Staff clarify that punishments/mutes are strictly given for severe violations such as insulting religions and racism; general trash talk or freedom of speech situations are generally not punished with mutes/bans.",
+          "actual_solution_ar": "يوضح الطاقم أن العقوبات والكتم تُفرض حصرياً على الانتهاكات الخطيرة مثل إهانة الأديان والعنصرية، بينما لا يتم معاقبة الكلام العادي أو مواقف حرية التعبير.",
+          "escalation_target": "Support Staff",
+          "when_to_escalate": "Escalate to senior staff only if hate speech, racism, or religious insults are verified."
+        },
+        {
+          "problem_title": "Unsafe Trades and Middleman Policy",
+          "problem_title_ar": "المعاملات غير الآمنة وسياسة الوسيط",
+          "symptoms": [
+            "Player scammed after buying/trading outside official channels"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "Did you use the designated middleman?"
+          ],
+          "required_player_actions": [
+            "Acknowledge server trade policies"
+          ],
+          "actual_solution_en": "Staff explicitly state: 'We don’t get involved in any purchases unless they go through our designated middleman. And we’ve warned everyone multiple times about this.'",
+          "actual_solution_ar": "يؤكد الطاقم صراحة: 'نحن لا نتدخل في أي عمليات شراء ما لم تمر عبر الوسيط المعتمد لدينا، وقد حذرنا الجميع عدة مرات من ذلك.'",
+          "escalation_target": "Exilium MiddleMan Staff",
+          "when_to_escalate": "Only handle character/item trades when using the official Exilium MiddleMan ticketing system."
+        }
+      ],
+      "staff_golden_rules": [
+        "Never get involved in player purchases, trades, or item loans unless transactions go through the official designated middleman.",
+        "Strictly enforce bans for Real Money Trading (RMT), silk selling, and alt-accounts linked to sellers after checking database logs.",
+        "Punishments and mutes for chat violations are strictly reserved for racism and insulting religions; standard trash talk or freedom of speech is not punishable.",
+        "Battle Royale and event bans for rule-breaking (such as teaming up) typically last for 7 days automatically.",
+        "Always require clear screenshots and exact Character Names (IGN) from players before taking moderation actions or executing bans."
+      ]
+    },
+    {
+      "category_name": "client_errors_and_launcher",
+      "total_analyzed_tickets": 85,
+      "common_problems": [
+        {
+          "problem_title": "BSObj Plugin Error / Game Not Opening",
+          "problem_title_ar": "خطأ BSObj Plugin أو عدم فتح اللعبة",
+          "symptoms": [
+            "BSObj Plugin error message appears when trying to open the game",
+            "Clicking the launcher does nothing",
+            "Clicking ExiliumClient.exe directly triggers the error or fails"
+          ],
+          "diagnostic_questions_to_ask_player": [
+            "Can you show me which file you click to open the game?",
+            "What is the exact error code or can you send a screenshot of the error message?"
+          ],
+          "required_player_actions": [
+            "Open the game from Silkroad.exe (or sro_client.exe) instead of ExiliumClient.exe",
+            "Check Task Manager (Ctrl + Shift + Esc) to close any stuck background processes",
+            "For Windows 11: Right-click desktop -> Display settings -> Graphics -> Browse to select sro_client.exe, set to 'High performance', and check 'Don't use optimizations for windowed games'"
+          ],
+          "actual_solution_en": "Do not launch the game using ExiliumClient.exe. Instead, launch it using silkroad.exe or sro_client.exe. If using Windows 11, configure graphics performance settings for sro_client.exe, and ensure any lingering background processes are terminated via Task Manager.",
+          "actual_solution_ar": "لا تقم بتشغيل اللعبة باستخدام ExiliumClient.exe. بدلاً من ذلك، قم بتشغيلها باستخدام silkroad.exe أو sro_client.exe. إذا كنت تستخدم ويندوز 11، قم بضبط إعدادات الأداء الرسومي لملف sro_client.exe، وتأكد من إيقاف أي عمليات عالقة في الخلفية عبر مدير المهام.",
+          "escalation_target": "Support and Management team",
+          "when_to_escalate": "When standard execution fixes fail and there is an unknown technical crash with no exact information available"
+        }
+      ],
+      "staff_golden_rules": [
+        "Always ask for a screenshot or the exact error message before attempting troubleshooting",
+        "Verify which specific executable file the player is clicking to launch the game",
+        "Ensure Windows Defender exclusions and system requirements are checked for installation issues"
+      ]
+    }
+  ],
+  "total_historic_tickets_indexed": 2532,
+  "knowledge_base_version": "2026.10-deep-ticket-synthesis"
 }
