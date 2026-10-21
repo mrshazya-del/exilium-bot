@@ -1,3 +1,4 @@
+import socket
 import urllib.request
 import zipfile
 import shutil
@@ -223,7 +224,11 @@ def kill_other_bot_instances() -> list:
 def acquire_instance_socket_lock(port: int = 49988) -> bool:
     """Guarantee strictly one single running instance of this bot on the entire operating system."""
     global INSTANCE_LOCK_SOCKET
-    kill_other_bot_instances()
+    try:
+        kill_other_bot_instances()
+    except Exception as ke:
+        logger.warning(f"Error during duplicate killer: {ke}")
+
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -233,18 +238,8 @@ def acquire_instance_socket_lock(port: int = 49988) -> bool:
         logger.info(f"Acquired single-instance socket lock on 127.0.0.1:{port}")
         return True
     except Exception as e:
-        logger.warning(f"Port {port} busy ({e}). Re-killing duplicates...")
-        kill_other_bot_instances()
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(("127.0.0.1", port))
-            s.listen(1)
-            INSTANCE_LOCK_SOCKET = s
-            return True
-        except Exception as e2:
-            logger.error(f"Duplicate instance detected holding port {port}: {e2}. Exiting to prevent multi-replies.")
-            sys.exit(0)
+        logger.warning(f"Could not bind single-instance lock on port {port}: {e}. Proceeding with bot startup.")
+        return False
 
 def sanitize_ign(raw_ign: str) -> str:
     """Strictly strip newlines, spaces, and command injection symbols while fully preserving valid Silkroad IGN characters: [], (), _, -, ., ~."""
