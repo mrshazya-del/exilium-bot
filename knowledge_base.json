@@ -110,28 +110,94 @@
     "mercenaries": "Guild Masters can purchase Mercenaries from NPC without job level restrictions."
   },
   "official_daily_event_schedule": [
-    { "time": "19:15", "event": "Automatic Unique Event" },
-    { "time": "19:40", "event": "Roc Job Event" },
-    { "time": "20:00", "event": "Zealot" },
-    { "time": "20:20", "event": "Battle Arena" },
-    { "time": "20:35", "event": "League of Legends Event" },
-    { "time": "20:55", "event": "Medusa (Balanced STR/INT Party of 4)" },
-    { "time": "21:15", "event": "Tower Defend" },
-    { "time": "21:35", "event": "Battle Arena (Party)" },
-    { "time": "22:00", "event": "Mining Event" },
-    { "time": "22:20", "event": "Survival Solo (Balanced)" },
-    { "time": "22:35", "event": "Elder Unique" },
-    { "time": "22:50", "event": "Haro / Seth / Treasure Box" },
-    { "time": "23:15", "event": "PvP Boss — Donwhang South" },
-    { "time": "23:30", "event": "Survival Teams (Balanced)" },
-    { "time": "23:50", "event": "Last Team Standing" },
-    { "time": "00:00", "event": "Special Goods — Tiger Mountain" },
-    { "time": "01:20", "event": "Roc Job Event" },
-    { "time": "02:00", "event": "Styria Clash" },
-    { "time": "02:30", "event": "Battle Arena" },
-    { "time": "03:00", "event": "Tower Defend" },
-    { "time": "03:30", "event": "Survival Teams (Balanced)" },
-    { "time": "04:00", "event": "Last Team Standing" }
+    {
+      "time": "19:15",
+      "event": "Automatic Unique Event"
+    },
+    {
+      "time": "19:40",
+      "event": "Roc Job Event"
+    },
+    {
+      "time": "20:00",
+      "event": "Zealot"
+    },
+    {
+      "time": "20:20",
+      "event": "Battle Arena"
+    },
+    {
+      "time": "20:35",
+      "event": "League of Legends Event"
+    },
+    {
+      "time": "20:55",
+      "event": "Medusa (Balanced STR/INT Party of 4)"
+    },
+    {
+      "time": "21:15",
+      "event": "Tower Defend"
+    },
+    {
+      "time": "21:35",
+      "event": "Battle Arena (Party)"
+    },
+    {
+      "time": "22:00",
+      "event": "Mining Event"
+    },
+    {
+      "time": "22:20",
+      "event": "Survival Solo (Balanced)"
+    },
+    {
+      "time": "22:35",
+      "event": "Elder Unique"
+    },
+    {
+      "time": "22:50",
+      "event": "Haro / Seth / Treasure Box"
+    },
+    {
+      "time": "23:15",
+      "event": "PvP Boss — Donwhang South"
+    },
+    {
+      "time": "23:30",
+      "event": "Survival Teams (Balanced)"
+    },
+    {
+      "time": "23:50",
+      "event": "Last Team Standing"
+    },
+    {
+      "time": "00:00",
+      "event": "Special Goods — Tiger Mountain"
+    },
+    {
+      "time": "01:20",
+      "event": "Roc Job Event"
+    },
+    {
+      "time": "02:00",
+      "event": "Styria Clash"
+    },
+    {
+      "time": "02:30",
+      "event": "Battle Arena"
+    },
+    {
+      "time": "03:00",
+      "event": "Tower Defend"
+    },
+    {
+      "time": "03:30",
+      "event": "Survival Teams (Balanced)"
+    },
+    {
+      "time": "04:00",
+      "event": "Last Team Standing"
+    }
   ],
   "major_events_and_schedules": {
     "fortress_war": {
@@ -185,10 +251,10 @@
       "solution_en": "1. Open Windows Security > Protection History and Restore sro_client.exe.\n2. Add the game folder to Exclusions.\n3. Install Visual C++ All-in-One Runtimes and DirectX 9."
     },
     {
-      "issue": "Character Stuck / Instant Disconnect upon login",
-      "cause": "Character stuck in buggy coordinate or corrupted zone.",
-      "solution_ar": "سجل الدخول في موقع exiliumonline.com واستخدم خيار Char Unstick لنقل الشخصية إلى Jangan. إذا لم تنجح، اذكر اسم الشخصية وسيقوم الآدمن بنقلها يدوياً.",
-      "solution_en": "Log into your account on exiliumonline.com and use the 'Char Unstick' feature to teleport your character to Jangan. If unresolved, provide character name for admin intervention."
+      "issue": "Character Stuck / Instant DC After Relog",
+      "cause": "Character stuck in a bugged state, corrupted position, or crashed alchemy state causing instant disconnection upon login.",
+      "solution_ar": "لا يوجد زر فك تعليق على الموقع في إكسيليوم. يجب على اللاعب تزويد البوت باسم الشخصية (IGN)، ويتم عمل منشن فوراً لـ @Astro و @STAM لمراجعة قاعدة البيانات وإصلاح موضع الشخصية/العنصر في السيرفر، مع بقاء اللاعب غير متصل (Offline) حتى يتم التأكيد.",
+      "solution_en": "There is no website unstick button. The player must provide their Character Name (IGN), and the ticket is escalated to @Astro and @STAM to check server database logs and teleport/fix the character while the player remains offline."
     },
     {
       "issue": "BSObj Plugin: can't create file transfer manager! Maybe pack file corrupted or someone is already accessing it now",
@@ -207,6 +273,84 @@
       "cause": "Windows 11 windowed gaming optimizations and GPU switching interfering with game client.",
       "solution_ar": "1. كليك يمين على سطح المكتب واضغط Display settings.\n2. انزل واضغط Graphics.\n3. اضغط Browse وحدد ملف sro_client.exe من مجلد Exilium.\n4. اضغط على sro_client.exe بالقائمة واختر Options.\n5. اختر High performance (كرت الشاشة الخارجي).\n6. فعّل خيار Don't use optimizations for windowed games.\n7. اضغط Save وأعد تشغيل اللعبة.",
       "solution_en": "1. Right-click desktop -> select 'Display settings'.\n2. Scroll down and click 'Graphics'.\n3. Click 'Browse' -> find and select 'sro_client.exe' from your Exilium folder.\n4. Find 'sro_client.exe' on the list and click 'Options'.\n5. Select 'High performance' (dedicated GPU).\n6. Check 'Don't use optimizations for windowed games'.\n7. Click 'Save' and restart Exilium."
+    },
+    {
+      "issue": "Auto Login Macro SRO_Client Crash or Immediate Close",
+      "cause": "Windows Defender or Data Execution Prevention (DEP) blocking modified vSRO executables or third-party auto-login macro tools.",
+      "solution_ar": "1. أنشئ مجلد جديد على الكمبيوتر باسم SRO وأضفه إلى قائمة الاستثناءات (Exclusions) في Windows Defender.\n2. ضع ملفات اللعبة بداخل هذا المجلد.\n3. أضف ملفات Replacer.exe و Silkroad.exe و SRO_Client.exe إلى إعدادات الـ DEP (Data Execution Prevention).\n4. شغل كل ملف (Macro Auto Login, Replacer, Silkroad, SRO_Client) مرة واحدة كمسؤول (Run as Administrator). إذا ظهر تحذير فايروسات الويندوز اضغط على More Info ثم Run anyway.",
+      "solution_en": "1. Create a folder named SRO on your PC and add it to Windows Defender Exclusions.\n2. Extract the game client inside this folder.\n3. Add Replacer.exe, Silkroad.exe, and SRO_Client.exe to your Windows DEP settings.\n4. Run Macro Auto Login, Replacer, Silkroad, and SRO_Client once each as Administrator. If a Windows warning appears, click 'More info' then 'Run anyway'."
+    },
+    {
+      "issue": "Disconnection Upon Entering Game / Specific Region Crash (e.g. Samarkand / Frozen Dungeon)",
+      "cause": "Corrupted map/teleport index files or missing client files during updates, often resolved by specific teleport routing or updating client paths.",
+      "solution_ar": "1. إذا واجهت فصل (DC) عند دخول اللعبة أو عند الانتقال لمنطقة معينة، استخدم المنفذ البديل (مثل الانتقال من Donwhang إلى آسيا الصغرى بدلاً من السفر المباشر).\n2. تأكد من إيقاف تشغيل Windows Defender أثناء فك ضغط التحديثات.\n3. قم بتطبيق ملفات الـ DLL المحسنة المقدمة من السيرفر لمنع الكראשات.",
+      "solution_en": "1. If you disconnect when entering specific areas (like Samarkand), use alternative teleports (e.g., teleport from DW to Asia Minor).\n2. Ensure Windows Defender is disabled when extracting game patches.\n3. Apply the server's provided DLL updates designed to fix client crashes and disconnections."
+    },
+    {
+      "issue": "Missing D3DX9 / Visual C++ Runtime Errors",
+      "cause": "Missing core DirectX 9 or Microsoft Visual C++ redistributable packages required by the vSRO client graphics engine.",
+      "solution_ar": "قم بتحميل وتثبيت حزم الفويزيوال سي بلس بلس (Visual C++ Redistributable) وخطوط وملفات دايركت إكس 9 (DirectX 9) الناقصة في نظام التشغيل لديك ثم إعادة تشغيل الكمبيوتر.",
+      "solution_en": "Download and install the missing Microsoft Visual C++ Redistributable packages and DirectX 9 runtime components, then restart your PC."
+    },
+    {
+      "issue": "Character Stuck / Instant DC After Relog",
+      "cause": "Character stuck in a bugged state, corrupted position, or crashed alchemy state causing instant disconnection upon login.",
+      "solution_ar": "لا يوجد زر فك تعليق على الموقع في إكسيليوم. يجب على اللاعب تزويد البوت باسم الشخصية (IGN)، ويتم عمل منشن فوراً لـ @Astro و @STAM لمراجعة قاعدة البيانات وإصلاح موضع الشخصية/العنصر في السيرفر، مع بقاء اللاعب غير متصل (Offline) حتى يتم التأكيد.",
+      "solution_en": "There is no website unstick button. The player must provide their Character Name (IGN), and the ticket is escalated to @Astro and @STAM to check server database logs and teleport/fix the character while the player remains offline."
+    },
+    {
+      "issue": "Player gets disconnected (DC) and loses currency/items when trying to purchase items (like Immo) using gift silk.",
+      "cause": "Reported in server support ticket",
+      "solution_ar": "تحقق من سجلات الخادم (Server Logs) لمعرفة ما إذا تمت عملية الشخصية وخصم العملة (مثل 300m)، وإذا لم يتم تسليم العنصر، قم بإضافته يدويًا أو رد العملة للمتسبب في المشكلة التقنية.",
+      "solution_en": "Check server logs to verify if currency was deducted and the purchase failed. If the item wasn't delivered, manually deliver the item or refund the currency."
+    },
+    {
+      "issue": "Exile Dracarys Golden Dragon pet has lower movement speed than other fellow pets.",
+      "cause": "Reported in server support ticket",
+      "solution_ar": "تم توثيق المشكلة وإحالتها إلى فريق الإدارة والتطوير لمراجعة قيم وسرعة الحيوان الأليف في ملفات اللعبة وإصلاحها في التحديث القادم.",
+      "solution_en": "Noted and escalated to the management team to investigate game data and stats for the pet's movement speed and apply a fix."
+    },
+    {
+      "issue": "BSObj Plugin Error / Launcher Won't Open",
+      "cause": "Player clicks launcher and nothing happens, or when opening ExiliumClient directly, they get a 'BSObj Plugin' error.",
+      "solution_ar": "1. افتح مدير المهام (Ctrl + Shift + Esc)، وابحث عن أي عمليات تعمل لـ `sro_client.exe` أو `silkroad.exe` واضغط 'إنهاء المهمة'. 2. أعد تشغيل الكمبيوتر. 3. شغل دائماً من أيقونة **silkroad.exe** كمسؤول (ولا تستخدم ExiliumClient مطلقاً).",
+      "solution_en": "1. Open Task Manager (Ctrl + Shift + Esc), find running instances of `sro_client.exe` or `silkroad.exe` under Processes and click 'End Task'. 2. Restart PC. 3. Always launch the game using **silkroad.exe** as Administrator (never ExiliumClient)."
+    },
+    {
+      "issue": "Windows 11 Clientless / Instant Closure",
+      "cause": "Game closes instantly or goes clientless on Windows 11 upon startup.",
+      "solution_ar": "1. اذهب إلى إعدادات ويندوز > الشاشة > الرسومات (Graphics). 2. اضغط تصفح واختر ملف `sro_client.exe`. 3. اضغط خيارات > اختر 'أداء عالي' (High performance) وفعّل خيار عدم استخدام تحسينات ألعاب النوافذ. احفظ الإعدادات وشغل اللعبة كمسؤول.",
+      "solution_en": "1. Go to Windows Settings > Display > Graphics. 2. Browse and select `sro_client.exe`. 3. Click Options > select 'High Performance' and check 'Don't use optimizations for windowed games'. Save and restart launcher as Admin."
+    },
+    {
+      "issue": "Character Stuck / Instant DC After Relog",
+      "cause": "Character stuck in a bugged state, corrupted position, or crashed alchemy state causing instant disconnection upon login.",
+      "solution_ar": "لا يوجد زر فك تعليق على الموقع في إكسيليوم. يجب على اللاعب تزويد البوت باسم الشخصية (IGN)، ويتم عمل منشن فوراً لـ @Astro و @STAM لمراجعة قاعدة البيانات وإصلاح موضع الشخصية/العنصر في السيرفر، مع بقاء اللاعب غير متصل (Offline) حتى يتم التأكيد.",
+      "solution_en": "There is no website unstick button. The player must provide their Character Name (IGN), and the ticket is escalated to @Astro and @STAM to check server database logs and teleport/fix the character while the player remains offline."
+    },
+    {
+      "issue": "Model Switcher Not Working / Failed to Switch",
+      "cause": "The weapon currently has an active Glow effect (like Bloody Glow) preventing the model switcher from applying, or requires manual server application.",
+      "solution_ar": "1. إذا كان السلاح عليه أي تأثير توهج (Glow مثل Bloody Glow)، يجب إزالة التوهج أولاً والمحاولة مجدداً.\n2. إذا استمرت المشكلة: ضع السلاح والـ Switcher في الصفحة الأولى (Page 1) من الحقيبة، وقم بتسجيل الخروج تماماً (Log Off)، وسيتم عمل منشن لـ @STAM لتطبيقه لك يدوياً من السيرفر.",
+      "solution_en": "1. If the weapon has an active Glow effect (such as Bloody Glow), remove the glow first and try again.\n2. If it still doesn't work: place the weapon and switcher on the first page of your inventory, log off the game completely, and tag @STAM to apply it manually on the server."
+    },
+    {
+      "issue": "Sold Weapon or Job Suit to NPC by Mistake",
+      "cause": "Player accidentally sold valuable gear, weapon, or job suit to an NPC shop.",
+      "solution_ar": "اطلب من اللاعب اسم الشخصية بدقة وتفاصيل العنصر المباع، ثم قم بتصعيد التذكرة إلى @STAM وفريق الإدارة للتحقق من السجلات واستعادة العنصر يدوياً.",
+      "solution_en": "Ask the player for their exact character name and item details, then escalate the ticket to @STAM and the Admin team for in-game log verification and manual item restoration."
+    },
+    {
+      "issue": "Character Stuck / Instant DC After Relog",
+      "cause": "Character stuck in a bugged state, corrupted position, or crashed alchemy state causing instant disconnection upon login.",
+      "solution_ar": "لا يوجد زر فك تعليق على الموقع في إكسيليوم. يجب على اللاعب تزويد البوت باسم الشخصية (IGN)، ويتم عمل منشن فوراً لـ @Astro و @STAM لمراجعة قاعدة البيانات وإصلاح موضع الشخصية/العنصر في السيرفر، مع بقاء اللاعب غير متصل (Offline) حتى يتم التأكيد.",
+      "solution_en": "There is no website unstick button. The player must provide their Character Name (IGN), and the ticket is escalated to @Astro and @STAM to check server database logs and teleport/fix the character while the player remains offline."
+    },
+    {
+      "issue": "Error C9 Connection Issue",
+      "cause": "Player experiences Error C9 when trying to connect to the game server.",
+      "solution_ar": "1. تحقق من قناة #announcements في ديسكورد للتأكد من عدم وجود صيانة بالسيرفر. 2. أضف مجلد اللعبة كاملاً إلى استثناءات مضاد الفيروسات. 3. أعد تشغيل راوتر الإنترنت لتجديد عنوان IP.",
+      "solution_en": "1. Check Discord #announcements to ensure server maintenance is not underway. 2. Add the entire Exilium folder to Windows Defender/Antivirus exclusions. 3. Restart internet router to refresh IP."
     }
   ],
   "escalation_reasons": [
@@ -217,5 +361,161 @@
     "Hardware ID (HWID) reset requests",
     "Severe technical server bugs not documented",
     "Direct request to speak with human Admin / Owner"
+  ],
+  "learned_gameplay_faqs": [
+    {
+      "question_en": "How do I claim my starting items and packages if they don't appear?",
+      "question_ar": "كيف أستلم الحزمة البديلة أو أدوات البداية إذا لم تظهر في الشخصية؟",
+      "answer_en": "Starting packages, SP, and auto-equip gear are delivered automatically or through the character chest/inventory upon character creation or reaching specific milestones. If delayed, wait a short moment or check your inventory/storage chest.",
+      "answer_ar": "يتم تسليم حزم البداية ونقاط الـ SP وأدوات الـ Auto Equip تلقائياً في صندوق الشخصية (Chest) أو الحقيبة عند إنشاء الشخصية أو الوصول لمستويات محددة. إذا تأخرت، انتظر قليلاً أو تفقد صندوق التخزين."
+    },
+    {
+      "question_en": "What is the maximum IP/PC character limit in the game?",
+      "question_ar": "ما هو الحد الأقصى المسموح به لفتح الشخصيات بنفس الجهاز (IP/PC Limit)؟",
+      "answer_en": "The IP/PC character limit is set to 8 characters per hardware/connection.",
+      "answer_ar": "الحد الأقصى المسموح به لفتح الشخصيات بنفس الجهاز (IP/PC Limit) هو 8 شخصيات."
+    },
+    {
+      "question_en": "Can I do both Trading and Thiefing without hitting a joint limit?",
+      "question_ar": "هل يمكنني العمل كتاجر (Trader) وكرصاع/سرّاق (Thief) في نفس الوقت دون تأثر الحد الأقصى للذهب؟",
+      "answer_en": "Yes! Thiefing profit does not count towards the daily trader limit. You can max out your trader earnings and still make extra money through thiefing.",
+      "answer_en_alt": "Yes, thiefing does not belong to the trader limit. You can make your maximum profit from trading and then go thiefing to earn additional gold on top.",
+      "answer_ar": "نعم! أرباح السرقة (Thiefing) لا تتبع حد التاجر اليومي. يمكنك تحقيق الحد الأقصى المسموح به من التجارة ثم العمل كسرّاق لتحقيق أموال إضافية فوقها."
+    },
+    {
+      "question_en": "How do Honor Buffs work if they don't appear in my buff list?",
+      "question_ar": "كيف تعمل بوفات الشرف (Honor Buffs) إذا لم تظهر في قائمة البوفات الخاصة بي؟",
+      "answer_en": "If honor points and buffs have been refreshed, you need to un-equip and re-equip your job suit once to update and display your honor buffs correctly.",
+      "answer_ar": "إذا تم تحديث نقاط الشرف ولم تظهر البوفات لديك، كل ما عليك فعله هو إزالة بدلة العمل (Job Suit) وإعادة ارتداؤها مرة واحدة لتظهر البوفات بشكل صحيح."
+    },
+    {
+      "question_en": "How do I participate in Equalized/Balanced Events properly?",
+      "question_ar": "كيف أشارك في الفعاليات المتوازنة (Balanced/Equalized Events) بشكل صحيح دون مشاكل في العتاد؟",
+      "answer_en": "For equalized and balanced events, place your secondary weapons or shields in the 1st and 2nd slots of your inventory to ensure proper scaling and functioning.",
+      "answer_ar": "بالنسبة للفعاليات المتوازنة والمتساوية، يجب وضع الأسلحة الثانوية أو الدروع في الخانتين الأولى والثانية (1st and 2nd slots) من الحقيبة لضمان عمل النظام بشكل صحيح."
+    }
+  ],
+  "escalation_and_mention_rules": [
+    {
+      "trigger_scenario": "In-Game Disconnect (DC) or Item Purchase Glitch (Gift Silk / Item Mall / Immo)",
+      "action": "Notify the player to provide transaction details, username, and IGN, and ping support roles if unresolved.",
+      "target_mention": "<@&1244326192631386112>",
+      "guideline_ar": "عندما يبلغ اللاعب عن فصل الاتصال (DC) أو مشكلة في شراء العناصر من متجر الهدايا (Gift Silk)، اطلب منه تفاصيل الحساب وقم بالإشارة إلى فريق الدعم.",
+      "guideline_en": "When a player reports a disconnect or an item purchase issue via gift silk, ask for their account details and tag the support team."
+    },
+    {
+      "trigger_scenario": "Game Balance, Stat Discrepancies, or Pet Speed Bug (e.g., Exile Dracarys Golden Dragon)",
+      "action": "Acknowledge the report, inform the player that game data check is required, and escalate to management/developers.",
+      "target_mention": "<@&1287045626860802162>",
+      "guideline_ar": "عندما يتعلق الأمر بمشاكل إحصائيات اللعبة أو سرعة الحيوانات الأليفة التي تتطلب فحص بيانات اللعبة، قم بإخطار الإدارة وفريق التطوير.",
+      "guideline_en": "When it concerns game stats or pet speed discrepancies requiring a game data check, notify management and developers."
+    }
+  ],
+  "mention_and_escalation_matrix": [
+    {
+      "scenario": "Starter Package verification",
+      "should_ai_answer_first": true,
+      "mention_target": "@STAM",
+      "trigger_keywords": [
+        "starter package",
+        "starter",
+        "beginner package",
+        "package",
+        "الحزمة",
+        "باكدج"
+      ],
+      "bot_action_en": "Welcome to Exilium! Your request for the Starter Package has been submitted to the administration for confirmation. Mention @STAM and staff roles for quick approval.",
+      "bot_action_ar": "أهلاً بك في إكسيليوم! تم إرسال طلبك للحزمة الترحيبية إلى الإدارة للمراجعة والتاكيد. تم عمل منشن للإدارة للمتابعة."
+    },
+    {
+      "scenario": "Donation / Silk delivery issue",
+      "should_ai_answer_first": true,
+      "mention_target": "@STAM",
+      "trigger_keywords": [
+        "donation",
+        "silk",
+        "pay",
+        "paypal",
+        "balance",
+        "شحن",
+        "سيل",
+        "تبرع"
+      ],
+      "bot_action_en": "Provide the web store link (exiliumonline.com/account/store). If the player paid and didn't receive silk, ask for their account ID/transaction ID and tag @STAM immediately.",
+      "bot_action_ar": "قم بتزويد اللاعب برابط المتجر (exiliumonline.com/account/store). إذا قام بالدفع ولم يتصل السيل، اطلب رقم الحساب أو تفاصيل التحويل وقم بعمل منشن لـ @STAM فوراً."
+    },
+    {
+      "scenario": "In-game bug / character stuck / error C9",
+      "should_ai_answer_first": true,
+      "mention_target": "@Astro & @STAM",
+      "trigger_keywords": [
+        "c9",
+        "stuck",
+        "error",
+        "bsobj",
+        "plugin",
+        "dc",
+        "clientless",
+        "crash",
+        "معلق",
+        "مشكلة",
+        "تسجيل دخول"
+      ],
+      "bot_action_en": "Ask for the player's IGN, instruct them to stay logged off, and mention @Astro and @STAM to fix the character in the database.",
+      "bot_action_ar": "اطلب اسم الشخصية (IGN)، واطلب من اللاعب البقاء أوفلاين، وقم بعمل منشن لـ @Astro و @STAM لإصلاح الشخصية في السيرفر."
+    },
+    {
+      "scenario": "Scam or player conflict / item loss / wrong NPC sale",
+      "should_ai_answer_first": true,
+      "mention_target": "@STAM",
+      "trigger_keywords": [
+        "scam",
+        "stolen",
+        "sold",
+        "npc",
+        "wrong",
+        "lost",
+        "مسروق",
+        "نصب",
+        "بعت",
+        "خطأ"
+      ],
+      "bot_action_en": "Acknowledge the item loss or wrong NPC sale. Ask for the character name and exact item details, then tag @STAM and Admin team for manual in-game inspection and restoration.",
+      "bot_action_ar": "أكد على مشكلة ضياع العنصر أو بيعه بالخطأ للتاجر. اطلب اسم الشخصية وتفاصيل العنصر بدقة، ثم قم بعمل منشن لـ @STAM وفريق الإدارة للمراجعة اليدوية والاسترجاع."
+    },
+    {
+      "scenario": "Banned account appeal",
+      "should_ai_answer_first": false,
+      "mention_target": "@STAM",
+      "trigger_keywords": [
+        "ban",
+        "banned",
+        "unban",
+        "blocked",
+        "مبند",
+        "حظر",
+        "محظور"
+      ],
+      "bot_action_en": "Inform the player that ban appeals must be reviewed by management. Tag @STAM and management roles directly to handle the appeal.",
+      "bot_action_ar": "أبلغ اللاعب أن طلبات إلغاء الحظر تتم مراجعتها حصرياً بواسطة الإدارة العليا. قم بعمل منشن لـ @STAM وفريق الإدارة للتعامل مع الطلب."
+    },
+    {
+      "scenario": "General FAQ / Download / Alchemy rate / Client links",
+      "should_ai_answer_first": true,
+      "mention_target": "NONE - AI resolves directly",
+      "trigger_keywords": [
+        "download",
+        "link",
+        "rate",
+        "alchemy",
+        "cap",
+        "رابط",
+        "تحميل",
+        "النسخة",
+        "سيرفر"
+      ],
+      "bot_action_en": "Provide direct download mirrors (Direct link, Mega, Google Drive, MediaFire) or explain server rates and game features directly without mentioning staff.",
+      "bot_action_ar": "قم بتزويد روابط التحميل المباشرة والمرايا (ميجا، جوجل درايف، ميديافاير) أو اشرح معدلات السيرفر وخصائص اللعبة مباشرة دون الحاجة لعمل منشن لأي مشرف."
+    }
   ]
 }
