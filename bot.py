@@ -1470,19 +1470,18 @@ async def process_ticket_ai_reply(
                 except Exception as ren_err:
                     logger.warning(f"Failed to rename resolved channel {channel.name}: {ren_err}")
 
-            # Send Solved, please close ticket Embed with Close Button
+            # Notify Team: Solved, please close ticket (Pure notification without buttons)
             try:
                 solved_embed = discord.Embed(
                     title="✅ Solved, please close ticket",
                     description=(
-                        "🎉 **تم تأكيد حل المشكلة بنجاح!**\n"
-                        "تم تغيير اسم القناة إلى `solved-` لإشعار فريق العمل والإدارة بإمكانية إغلاقها.\n\n"
-                        "💡 *إذا أردت إغلاق التذكرة الآن، يمكنك الضغط على الزر أدناه مباشرة:*"
+                        "🎉 **تم حل المشكلة وتأكيد ذلك من قبل اللاعب بنجاح!**\n"
+                        "تم تغيير اسم القناة إلى `solved-` لإعلام طاقم العمل بإمكانية إغلاق التذكرة عبر بوت الكنترول."
                     ),
                     color=0x2ECC71
                 )
-                solved_embed.set_footer(text="Exilium Support Management • Auto-Resolved")
-                await channel.send(embed=solved_embed, view=StaffCloseView())
+                solved_embed.set_footer(text="Exilium Support Management • Team Notification")
+                await channel.send(embed=solved_embed)
             except Exception as se_err:
                 logger.warning(f"Failed to send solved embed: {se_err}")
         elif needs_vc or needs_dx:
