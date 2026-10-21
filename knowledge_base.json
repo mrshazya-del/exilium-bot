@@ -229,7 +229,18 @@
     "no_refund_policy": "All digital goods and Silk are delivered instantly upon purchase and are strictly non-refundable under any circumstances.",
     "chargeback_penalty": "Initiating a dispute or chargeback will be deemed fraud and results in an immediate permanent ban (IP & HWID lock).",
     "password_security": "Exilium Online staff will NEVER ask for your password.",
-    "off_market_trading": "Off-market real-money transactions (RMT) outside official server mechanisms are strictly prohibited."
+    "off_market_trading": "Off-market real-money transactions (RMT) outside official server mechanisms are strictly prohibited.",
+    "official_middleman_service": {
+      "available": true,
+      "description": "Exilium provides an official Middleman service for safe real-money/cash trades between players (accounts, items, gold, silk).",
+      "fee": "10% fee of the total cash transaction amount (رسوم الخدمة 10% من إجمالي المبلغ الكاش).",
+      "rules": [
+        "Both buyer and seller must open or join an official Discord Support Ticket.",
+        "Both parties must state character names (IGNs) and agree to the 10% cash fee.",
+        "Staff will hold items/account safely until payment is verified, then deliver to buyer and release payment.",
+        "Trading outside the official middleman is strictly unauthorized. Staff will NOT assist or compensate any scams occurring without our official 10% middleman."
+      ]
+    }
   },
   "common_errors_and_fixes": [
     {
@@ -888,24 +899,27 @@
           "when_to_escalate": "When checking specific event logs and verifying ban expiration timestamps."
         },
         {
-          "problem_title": "RMT / Real Money Trading (Selling Silk or Items for Cash)",
-          "problem_title_ar": "البيع مقابل أموال حقيقية (بيع الحرير أو الأغراض بالدولار)",
+          "problem_title": "Official Middleman Service & Cash/RMT Trading",
+          "problem_title_ar": "خدمة الوسيط المعتمد (Middleman) وتجارة الكاش",
           "symptoms": [
-            "Player reporting footpets or characters selling silk/items for real money (e.g., 1k silk for $0.9)",
-            "Player banned for associating with sellers"
+            "Player asking if cash/real-money trading is allowed",
+            "Player asking for GM/Staff Middleman for PayPal/Crypto/Cash trade",
+            "Buyer and seller wanting safe trade"
           ],
           "diagnostic_questions_to_ask_player": [
-            "Do you have any screenshots?",
-            "What is your main account name / IGN?"
+            "Are both the buyer and seller present in this ticket?",
+            "Do both parties agree to the official 10% cash middleman fee?",
+            "What are the character names (IGNs) and exact items/amount being traded?"
           ],
           "required_player_actions": [
-            "Provide screenshot proofs",
-            "Provide main account and character name"
+            "Open an official Support Ticket",
+            "Both parties must explicitly agree to the 10% cash fee",
+            "Provide all trade details and IGNs inside the ticket only"
           ],
-          "actual_solution_en": "Staff check logs for transaction links to sellers. Confirmed RMT sellers and associated accounts are permanently banned ('done banned').",
-          "actual_solution_ar": "يقوم الطاقم بفحص السجلات للبحث عن روابط مع البائعين. يتم حظر بائعي التجارة الحقيقية والحسابات المرتبطة بهم نهائياً.",
-          "escalation_target": "@Astro or @STAM",
-          "when_to_escalate": "When verifying logs between players and known RMT sellers for ban execution."
+          "actual_solution_en": "Exilium provides an official Middleman service for safe cash/real-money trades. The service fee is 10% of the total cash amount. Both buyer and seller must be inside an official ticket, state their IGNs and trade details, and agree to the 10% fee. Trades made outside the official 10% middleman are unauthorized and scams will not be compensated.",
+          "actual_solution_ar": "يوفر سيرفر إكزليوم خدمة وسيط معتمد (Official Middleman) لتأمين عمليات بيع وشراء الكاش بين اللاعبين. رسوم الوساطة هي 10% من إجمالي المبلغ الكاش. يجب على البائع والمشتري فتح تيكت رسمي، وتحديد أسماء شخصياتهم وتفاصيل الصفقة، والموافقة على نسبة الـ 10%. أي صفقات تتم خارج الوسيط الرسمي غير معتمدة ولن يتم تعويض أي نصب يحدث خارجها.",
+          "escalation_target": "Exilium Official Middleman Staff / @STAM",
+          "when_to_escalate": "When both parties are ready in the ticket and agree to the 10% middleman fee."
         },
         {
           "problem_title": "In-Game Insults, Free Speech, and Harassment",
@@ -948,7 +962,8 @@
         "Strictly enforce bans for Real Money Trading (RMT), silk selling, and alt-accounts linked to sellers after checking database logs.",
         "Punishments and mutes for chat violations are strictly reserved for racism and insulting religions; standard trash talk or freedom of speech is not punishable.",
         "Battle Royale and event bans for rule-breaking (such as teaming up) typically last for 7 days automatically.",
-        "Always require clear screenshots and exact Character Names (IGN) from players before taking moderation actions or executing bans."
+        "Always require clear screenshots and exact Character Names (IGN) from players before taking moderation actions or executing bans.",
+        "Official Middleman service is available for a 10% cash fee. Never trade outside official tickets."
       ]
     },
     {
