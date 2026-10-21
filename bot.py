@@ -59,7 +59,7 @@ COMMUNITY_SUPPORTER_ROLE_ID = os.getenv("COMMUNITY_SUPPORTER_ROLE_ID", "12443261
 COMMANDS_CHANNEL_NAME = os.getenv("COMMANDS_CHANNEL_NAME", "send-commands").strip()
 COMMANDS_CHANNEL_ID = os.getenv("COMMANDS_CHANNEL_ID", "1236998285680578580").strip()
 
-raw_prefixes = os.getenv("TICKET_CHANNEL_PREFIXES", "ticket-,support-,ticket_")
+raw_prefixes = os.getenv("TICKET_CHANNEL_PREFIXES", "ticket-,support-,ticket_,solved-")
 TICKET_CHANNEL_PREFIXES = [p.strip().lower() for p in raw_prefixes.split(",") if p.strip()]
 TICKET_CATEGORY_ID = os.getenv("TICKET_CATEGORY_ID", "").strip()
 
@@ -340,9 +340,9 @@ OPERATING INSTRUCTIONS & EXPERTISE:
    - Silk purchasing and donations are 100% automated on the website. If a player asks about buying Silk, payment methods, or store:
      Direct them immediately to the official store: https://exiliumonline.com/account/store and mention that delivery is instant.
 
-8. ISSUE RESOLVED CONFIRMATION:
-   - When the player confirms their issue is solved ("thanks", "solved", "all good", "شكرا", "sagol"):
-     Reply politely: "Awesome! Glad I could help you today. Please click the red [Close Ticket] button above to close this ticket. Have fun playing Exilium! 👋"
+8. ISSUE RESOLVED CONFIRMATION (100% SOLVED):
+   - When the player confirms their issue is 100% solved ("thanks it worked", "solved", "all good now", "fixed now", "شكرا اتحلت", "اشتغلت خلاص", "sagol oldu"):
+     Reply warmly: "Awesome! So glad to hear your issue is completely resolved. I have marked this channel as solved so our team knows it is ready to be closed. Have fun playing Exilium! 👋"
      and append [TICKET_RESOLVED].
 """
 
@@ -1385,6 +1385,18 @@ async def process_ticket_ai_reply(
         # Check for Escalation, Resolution, or Starter Flags
         needs_escalation = "[ESCALATE_TO_ADMIN]" in ai_text
         is_resolved = "[TICKET_RESOLVED]" in ai_text
+
+        # 100% Resolved Player Confirmation
+        resolved_keywords = [
+            "problem solved", "issue solved", "it worked now", "it works now",
+            "working now", "solved thanks", "all good now", "fixed now",
+            "اتحلت خلاص", "شكرا اتحلت", "اشتغلت خلاص", "المشكله اتحلت", "تمام اشتغلت",
+            "solved please close", "please close ticket", "close ticket thanks",
+            "close ticket", "اقفل التيكت", "اقفل التذكرة"
+        ]
+        user_lower = user_query.lower()
+        if any(rk in user_lower for rk in resolved_keywords) and not needs_escalation:
+            is_resolved = True
         has_starter_request = (
             "<<<AWAIT_STARTER_CONFIRMATION>>>" in ai_text
             or "AWAIT_STARTER_CONFIRMATION" in ai_text
@@ -1448,6 +1460,31 @@ async def process_ticket_ai_reply(
             record_daily_ticket(channel_id, channel.name, current_ign, author.name, user_query[:60], "🚨 Escalated")
         elif is_resolved:
             record_daily_ticket(channel_id, channel.name, current_ign, author.name, user_query[:60], "✅ Resolved")
+            
+            # Auto-rename channel to solved- so staff immediately knows it's resolved!
+            if isinstance(channel, discord.TextChannel) and not channel.name.startswith("solved-"):
+                new_channel_name = f"solved-{channel.name}"[:100]
+                try:
+                    await channel.edit(name=new_channel_name, reason="Ticket 100% resolved by AI assistant")
+                    logger.info(f"Renamed ticket channel {channel_id} to {new_channel_name}")
+                except Exception as ren_err:
+                    logger.warning(f"Failed to rename resolved channel {channel.name}: {ren_err}")
+
+            # Send Solved, please close ticket Embed with Close Button
+            try:
+                solved_embed = discord.Embed(
+                    title="✅ Solved, please close ticket",
+                    description=(
+                        "🎉 **تم تأكيد حل المشكلة بنجاح!**\n"
+                        "تم تغيير اسم القناة إلى `solved-` لإشعار فريق العمل والإدارة بإمكانية إغلاقها.\n\n"
+                        "💡 *إذا أردت إغلاق التذكرة الآن، يمكنك الضغط على الزر أدناه مباشرة:*"
+                    ),
+                    color=0x2ECC71
+                )
+                solved_embed.set_footer(text="Exilium Support Management • Auto-Resolved")
+                await channel.send(embed=solved_embed, view=StaffCloseView())
+            except Exception as se_err:
+                logger.warning(f"Failed to send solved embed: {se_err}")
         elif needs_vc or needs_dx:
             record_ticket_stat("Runtime / DirectX Error")
             record_daily_ticket(channel_id, channel.name, current_ign, author.name, user_query[:60], "⏳ In Progress")
