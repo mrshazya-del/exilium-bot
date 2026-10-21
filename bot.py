@@ -157,49 +157,94 @@ def is_community_channel(channel: discord.abc.GuildChannel) -> bool:
 
     return False
 
+INSTANCE_LOCK_SOCKET = None
+
 def kill_other_bot_instances() -> list:
-    """Find and terminate any other ghost/zombie python processes running bot.py."""
+    """Find and terminate any other ghost/zombie python processes running this bot."""
     killed = []
     my_pid = os.getpid()
 
+    # 1. psutil kill (fast and accurate)
+    try:
+        import psutil
+        for p in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                pid = p.info['pid']
+                if pid == my_pid:
+                    continue
+                name = (p.info['name'] or '').lower()
+                if 'python' in name:
+                    cmdline_parts = p.info['cmdline'] or []
+                    cmdline_str = ' '.join(cmdline_parts).lower()
+                    if 'bot.py' in cmdline_str and 'control' not in cmdline_str:
+                        p.kill()
+                        killed.append(pid)
+            except Exception:
+                pass
+    except Exception as pe:
+        logger.debug(f"psutil check: {pe}")
+
+    # 2. Windows socket port & taskkill cleanup
     if sys.platform == "win32":
         try:
-            ps_cmd = 'Get-CimInstance Win32_Process | Where-Object { $_.Name -like "*python*" } | Select-Object ProcessId, CommandLine | ConvertTo-Json'
-            p = subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True, text=True, errors="ignore")
-            if p.stdout.strip():
-                try:
-                    data = json.loads(p.stdout)
-                    if isinstance(data, dict):
-                        data = [data]
-                    for item in data:
-                        pid = item.get("ProcessId")
-                        cmdline = item.get("CommandLine") or ""
-                        if pid and pid != my_pid and "bot.py" in cmdline and "exilium-bot" in cmdline:
-                            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
-                            killed.append(pid)
-                except Exception:
-                    pass
-        except Exception as e:
-            logger.warning(f"Error checking Windows duplicate processes: {e}")
-    else:  # Linux / POSIX
+            net_out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, errors="ignore").stdout
+            for line in net_out.splitlines():
+                if ":49988" in line and "LISTENING" in line:
+                    parts = line.strip().split()
+                    if len(parts) >= 5 and parts[-1].isdigit():
+                        h_pid = int(parts[-1])
+                        if h_pid != my_pid and h_pid not in killed:
+                            subprocess.run(["taskkill", "/F", "/PID", str(h_pid)], capture_output=True)
+                            killed.append(h_pid)
+        except Exception:
+            pass
+
+    # 3. Linux / POSIX fallback
+    if sys.platform != "win32" and not killed:
         try:
             p = subprocess.run(["pgrep", "-f", "bot.py"], capture_output=True, text=True, errors="ignore")
             for line in p.stdout.splitlines():
                 line = line.strip()
                 if line.isdigit():
                     pid = int(line)
-                    if pid != my_pid:
+                    if pid != my_pid and pid not in killed:
                         try:
                             os.kill(pid, 9)
                             killed.append(pid)
                         except Exception:
                             pass
-        except Exception as e:
-            logger.warning(f"Error checking Linux duplicate processes: {e}")
+        except Exception:
+            pass
 
     if killed:
         logger.info(f"Cleaned up {len(killed)} duplicate bot process(es): {killed}")
     return killed
+
+def acquire_instance_socket_lock(port: int = 49988) -> bool:
+    """Guarantee strictly one single running instance of this bot on the entire operating system."""
+    global INSTANCE_LOCK_SOCKET
+    kill_other_bot_instances()
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("127.0.0.1", port))
+        s.listen(1)
+        INSTANCE_LOCK_SOCKET = s
+        logger.info(f"Acquired single-instance socket lock on 127.0.0.1:{port}")
+        return True
+    except Exception as e:
+        logger.warning(f"Port {port} busy ({e}). Re-killing duplicates...")
+        kill_other_bot_instances()
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("127.0.0.1", port))
+            s.listen(1)
+            INSTANCE_LOCK_SOCKET = s
+            return True
+        except Exception as e2:
+            logger.error(f"Duplicate instance detected holding port {port}: {e2}. Exiting to prevent multi-replies.")
+            sys.exit(0)
 
 def sanitize_ign(raw_ign: str) -> str:
     """Strictly strip newlines, spaces, and command injection symbols while fully preserving valid Silkroad IGN characters: [], (), _, -, ., ~."""
@@ -1268,58 +1313,77 @@ async def on_github_auto_updater_loop_error(error):
 ticket_pending_queues: Dict[int, List[discord.Message]] = {}
 ticket_debounce_tasks: Dict[int, asyncio.Task] = {}
 
+ticket_channel_locks: Dict[int, asyncio.Lock] = {}
+ticket_last_reply_ts: Dict[int, float] = {}
+
 async def debounced_ticket_worker(channel_id: int):
-    """Waits for 5 seconds of player silence before processing accumulated messages."""
+    """Waits for 5 seconds of player silence before processing accumulated messages with anti-concurrency lock."""
     try:
         await asyncio.sleep(5.0)
     except asyncio.CancelledError:
         return
 
-    pending_msgs = ticket_pending_queues.pop(channel_id, [])
-    ticket_debounce_tasks.pop(channel_id, None)
+    if channel_id not in ticket_channel_locks:
+        ticket_channel_locks[channel_id] = asyncio.Lock()
 
-    if not pending_msgs:
+    lock = ticket_channel_locks[channel_id]
+    if lock.locked():
+        # Another AI reply generation is currently in flight in this channel!
         return
 
-    first_msg = pending_msgs[0]
-    channel = first_msg.channel
-    guild = first_msg.guild
-    author = pending_msgs[-1].author
+    async with lock:
+        # Enforce minimum 4s cooldown between consecutive AI messages in the same ticket
+        now = time.time()
+        last_sent = ticket_last_reply_ts.get(channel_id, 0.0)
+        if (now - last_sent) < 4.0:
+            await asyncio.sleep(4.0 - (now - last_sent))
 
-    # Aggregate text and attachments
-    text_parts = []
-    image_parts = []
-    for m in pending_msgs:
-        content_text = m.content.strip()
-        if content_text:
-            text_parts.append(content_text)
-        if m.attachments:
-            for att in m.attachments:
-                if att.content_type and att.content_type.startswith("image/"):
-                    try:
-                        if att.size <= 8 * 1024 * 1024:
-                            img_bytes = await att.read()
-                            image_parts.append(types.Part.from_bytes(data=img_bytes, mime_type=att.content_type))
-                            logger.info(f"Loaded image attachment from {m.author}: {att.filename} ({att.size} bytes)")
-                    except Exception as e:
-                        logger.warning(f"Error reading attachment: {e}")
+        pending_msgs = ticket_pending_queues.pop(channel_id, [])
+        ticket_debounce_tasks.pop(channel_id, None)
 
-    user_query = "\n".join(text_parts).strip()
-    if not user_query and image_parts:
-        user_query = "Player uploaded an error screenshot. Please diagnose the exact error, explain the fix in 2-3 bullet points, and provide official download links."
-    elif not user_query and not image_parts:
-        return
+        if not pending_msgs:
+            return
 
-    async with channel.typing():
-        await process_ticket_ai_reply(
-            channel=channel,
-            guild=guild,
-            author=author,
-            user_query=user_query,
-            image_parts=image_parts,
-            is_ticket_bot_embed=False,
-            target_mention=""
-        )
+        first_msg = pending_msgs[0]
+        channel = first_msg.channel
+        guild = first_msg.guild
+        author = pending_msgs[-1].author
+
+        # Aggregate text and attachments
+        text_parts = []
+        image_parts = []
+        for m in pending_msgs:
+            content_text = m.content.strip()
+            if content_text:
+                text_parts.append(content_text)
+            if m.attachments:
+                for att in m.attachments:
+                    if att.content_type and att.content_type.startswith("image/"):
+                        try:
+                            if att.size <= 8 * 1024 * 1024:
+                                img_bytes = await att.read()
+                                image_parts.append(types.Part.from_bytes(data=img_bytes, mime_type=att.content_type))
+                                logger.info(f"Loaded image attachment from {m.author}: {att.filename} ({att.size} bytes)")
+                        except Exception as e:
+                            logger.warning(f"Error reading attachment: {e}")
+
+        user_query = "\n".join(text_parts).strip()
+        if not user_query and image_parts:
+            user_query = "Player uploaded an error screenshot. Please diagnose the exact error, explain the fix in 2-3 bullet points, and provide official download links."
+        elif not user_query and not image_parts:
+            return
+
+        async with channel.typing():
+            await process_ticket_ai_reply(
+                channel=channel,
+                guild=guild,
+                author=author,
+                user_query=user_query,
+                image_parts=image_parts,
+                is_ticket_bot_embed=False,
+                target_mention=""
+            )
+            ticket_last_reply_ts[channel_id] = time.time()
 
 # -------------------------------------------------------------
 # Core Ticket AI Reply Handler
@@ -1637,6 +1701,15 @@ async def start_health_server():
 # -------------------------------------------------------------
 # Bot Events
 # -------------------------------------------------------------
+@tasks.loop(minutes=5)
+async def ghost_killer_loop():
+    """Periodically terminate any duplicate bot processes running on the host."""
+    try:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, kill_other_bot_instances)
+    except Exception:
+        pass
+
 @bot.event
 async def on_ready():
     logger.info(f"Bot connected successfully as {bot.user} (ID: {bot.user.id})")
@@ -1663,6 +1736,10 @@ async def on_ready():
     if not github_auto_updater_loop.is_running():
         github_auto_updater_loop.start()
         logger.info("Started GitHub auto-updater background watchdog (2 min interval).")
+
+    if not ghost_killer_loop.is_running():
+        ghost_killer_loop.start()
+        logger.info("Started ghost duplicate killer loop (5 min interval).")
 
     try:
         # Clean up any duplicate guild-scoped commands so only single global commands exist
@@ -2397,8 +2474,8 @@ if __name__ == "__main__":
         print("="*60 + "\n")
         exit(1)
 
-    # Automatically purge any ghost/duplicate bot processes on startup
-    kill_other_bot_instances()
+    # Strictly ensure only 1 single instance runs across the entire server
+    acquire_instance_socket_lock(49988)
 
     print(f"🚀 جاري تشغيل بوت Exilium AI Assistant (v{BOT_VERSION})...")
     bot.run(DISCORD_BOT_TOKEN)
