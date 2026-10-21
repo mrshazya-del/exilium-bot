@@ -174,7 +174,7 @@ def kill_other_bot_instances() -> list:
                     for item in data:
                         pid = item.get("ProcessId")
                         cmdline = item.get("CommandLine") or ""
-                        if pid and pid != my_pid and "bot.py" in cmdline:
+                        if pid and pid != my_pid and "bot.py" in cmdline and "exilium-bot" in cmdline:
                             subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
                             killed.append(pid)
                 except Exception:
@@ -1185,6 +1185,84 @@ async def on_weekly_report_loop_error(error):
         weekly_report_loop.restart()
 
 # -------------------------------------------------------------
+# GitHub Auto-Updater Watchdog Loop (Every 2 minutes)
+# -------------------------------------------------------------
+RUNNING_COMMIT_SHA = None
+
+@tasks.loop(minutes=2)
+async def github_auto_updater_loop():
+    """Periodically checks GitHub for new commits and auto-deploys updates seamlessly."""
+    global RUNNING_COMMIT_SHA
+    token = os.getenv("GITHUB_TOKEN", "").strip()
+    repo_name = "mrshazya-del/exilium-bot"
+    api_url = f"https://api.github.com/repos/{repo_name}/commits/main"
+
+    headers = {"User-Agent": "Exilium-Auto-Updater"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+
+    try:
+        def fetch_commit():
+            req = urllib.request.Request(api_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(None, fetch_commit)
+        latest_sha = data.get("sha")
+        commit_msg = data.get("commit", {}).get("message", "").split("\n")[0]
+
+        if not latest_sha:
+            return
+
+        if RUNNING_COMMIT_SHA is None:
+            RUNNING_COMMIT_SHA = latest_sha
+            logger.info(f"GitHub Auto-Updater Watchdog initialized on commit: {latest_sha[:7]} ({commit_msg})")
+            return
+
+        if latest_sha != RUNNING_COMMIT_SHA:
+            logger.info(f"New GitHub update detected: {latest_sha[:7]} - '{commit_msg}'. Syncing...")
+            RUNNING_COMMIT_SHA = latest_sha
+
+            # Run download and update
+            summary = await loop.run_in_executor(None, download_github_update_sync, repo_name, "main", token)
+            load_knowledge_base()
+            logger.info(f"Auto-update applied: {summary}")
+
+            # Notify staff log channel if configured
+            try:
+                log_cid = int(os.getenv("STAFF_LOG_CHANNEL_ID", "0"))
+                log_ch = bot.get_channel(log_cid)
+                if log_ch:
+                    embed = discord.Embed(
+                        title="🚀 Exilium Bot Auto-Updated from GitHub!",
+                        description=f"• **Commit:** `{latest_sha[:7]}`\n• **Message:** `{commit_msg}`\n• **Summary:**\n```{summary[:500]}```",
+                        color=0x2ECC71
+                    )
+                    await log_ch.send(embed=embed)
+            except Exception as le:
+                logger.warning(f"Could not send auto-update log: {le}")
+
+            # If python code changed, restart process
+            if "bot.py" in summary or ".py" in summary:
+                logger.info("Python code was updated. Restarting bot instance...")
+                await asyncio.sleep(2.0)
+                if sys.platform == "win32":
+                    subprocess.Popen([sys.executable] + sys.argv)
+                    os._exit(0)
+                else:
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
+    except Exception as e:
+        logger.debug(f"GitHub Auto-Updater check skipped: {e}")
+
+@github_auto_updater_loop.error
+async def on_github_auto_updater_loop_error(error):
+    logger.warning(f"GitHub auto-updater loop error: {error}. Resuming in 30s...")
+    await asyncio.sleep(30.0)
+    if not github_auto_updater_loop.is_running():
+        github_auto_updater_loop.restart()
+
+# -------------------------------------------------------------
 # Debounce Storage (5s Player Silence Debounce)
 # -------------------------------------------------------------
 ticket_pending_queues: Dict[int, List[discord.Message]] = {}
@@ -1545,6 +1623,10 @@ async def on_ready():
     if not weekly_report_loop.is_running():
         weekly_report_loop.start()
         logger.info("Started weekly report background loop.")
+
+    if not github_auto_updater_loop.is_running():
+        github_auto_updater_loop.start()
+        logger.info("Started GitHub auto-updater background watchdog (2 min interval).")
 
     try:
         # Clean up any duplicate guild-scoped commands so only single global commands exist
@@ -2096,7 +2178,9 @@ def download_github_update_sync(repo_name: str = "mrshazya-del/exilium-bot", bra
     base_dir = os.path.dirname(os.path.abspath(__file__))
     protected_files = {
         ".env",
+        ".env.example",
         "daily_tickets.json",
+        "ticket_analytics.json",
         "inactivity_tracker.json",
         "analytics.json",
         "claimed_starters.json"
@@ -2157,6 +2241,37 @@ async def version_command(interaction: discord.Interaction):
     )
     embed.set_footer(text="Exilium Support Management • Bot Engine")
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="upload-kb", description="Upload and apply a new knowledge_base.json immediately (Admin Only)")
+@app_commands.checks.has_permissions(administrator=True)
+async def upload_kb_command(interaction: discord.Interaction, file: discord.Attachment):
+    await interaction.response.defer(ephemeral=True)
+    if not is_exilium_team_member(interaction.user):
+        await interaction.followup.send("❌ هذا الأمر مخصص لـ 👑 EXILIUM TEAM فقط.", ephemeral=True)
+        return
+
+    if not file.filename.endswith(".json"):
+        await interaction.followup.send("❌ يرجى رفع ملف بصيغة `.json` فقط.", ephemeral=True)
+        return
+
+    try:
+        content_bytes = await file.read()
+        parsed = json.loads(content_bytes.decode("utf-8"))
+        kb_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "knowledge_base.json")
+        with open(kb_path, "wb") as kf:
+            kf.write(content_bytes)
+        load_knowledge_base()
+        issues_count = len(parsed.get("common_errors_and_fixes", []))
+        await interaction.followup.send(
+            f"✅ **تم تحديث قاعدة المعرفة فورياً!**\n"
+            f"• تم حفظ الملف بنجاح على السيرفر.\n"
+            f"• عدد المشاكل الشائعة المحملة: `{issues_count}` مشكلة.\n"
+            f"• تم تفعيل التعديلات بالذاكرة فوراً دون الحاجة لإعادة التشغيل.",
+            ephemeral=True
+        )
+    except Exception as e:
+        logger.error(f"Failed to upload KB: {e}")
+        await interaction.followup.send(f"❌ حدث خطأ أثناء معالجة الملف: `{e}`", ephemeral=True)
 
 @bot.tree.command(name="update-bot", description="Pull latest updates from GitHub and restart the bot automatically (Admin Only)")
 async def update_bot_command(interaction: discord.Interaction):
