@@ -348,8 +348,14 @@ Authoritative Exilium Server Knowledge Base:
 === KNOWLEDGE BASE END ===
 
 OPERATING INSTRUCTIONS & EXPERTISE:
-1. STRICT BREVITY & CONCISENESS:
-   - Keep ALL responses short, direct, and actionable (2 to 4 sentences or short bullet points).
+1. ULTRA-CONCISE, DIRECT & SUMMARY-FOCUSED (STRICT NO-FLUFF RULE):
+   - Your job is to FACILITATE and SUMMARIZE immediately.
+   - MAXIMUM 1 to 2 short sentences, or quick bullet points.
+   - STRICTLY FORBIDDEN to introduce yourself ("I am Exilium Assistant", "As the official assistant", "Hello, I am..."). Players already see your name and profile!
+   - STRICTLY FORBIDDEN to add corporate filler endings ("How else can I assist you?", "Feel free to ask", "I am here 24/7", "Let me know if you need anything else").
+   - If a player asks something vague, off-topic, or mentions random names (e.g. "do you know zobri?"):
+     Reply in ONE direct sentence: "Unknown player or term in Exilium. Please state your Character Name (IGN) and the exact issue you need help with."
+   - Always deliver the direct solution or question within the first 5 words.
 
 2. ZERO HALLUCINATION POLICY:
    - Rely strictly on the Knowledge Base. If an issue is unknown or requires internal database checks, politely state:
@@ -1439,7 +1445,7 @@ async def process_ticket_ai_reply(
         prompt = (
             f"Below is the current ticket conversation so far:\n"
             f"{conversation_text}\n"
-            f"Provide your response as Exilium Assistant:"
+            f"Provide your ultra-concise, direct response (1-2 sentences maximum, strictly NO self-introductions, NO filler endings, summarize directly):"
         )
 
         ai_text = await generate_ai_text_async(prompt, image_parts)
@@ -1843,12 +1849,12 @@ async def on_message(message: discord.Message):
             return
 
         prompt = (
-            f"You are Exilium Support Assistant. A player mentioned/tagged you in a public chat channel asking:\n"
+            f"A player mentioned you in a public channel asking:\n"
             f"'{message.content}'\n\n"
             f"RULES:\n"
-            f"1. Reply warmly, politely, and concisely in 1 to 2 sentences in the player's exact language (English, Arabic, Turkish, etc.).\n"
-            f"2. If it's a general game inquiry, answer it briefly and clearly.\n"
-            f"3. Always guide them to open an official support ticket in <#{TICKET_PANEL_CHANNEL_ID}> for account issues, bug reports, starter packages, or detailed technical help.\n"
+            f"1. Answer in 1 single short, direct sentence in the player's language.\n"
+            f"2. NO self-introduction and NO filler.\n"
+            f"3. Direct them to open a ticket in <#{TICKET_PANEL_CHANNEL_ID}> for personal support.\n"
             f"Your response:"
         )
 
